@@ -1,6 +1,10 @@
-### PROJECT LAYOUT
+[theme]
 primaryColor = "#2563EB"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F1F5FB"
+backgroundColor = "#F9FAFB"
+secondaryBackgroundColor = "#FFFFFF"
 textColor = "#0F172A"
 font = "sans serif"
+
+[client]
+showSidebarNavigation = true
+
