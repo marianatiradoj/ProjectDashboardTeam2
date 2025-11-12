@@ -1,5 +1,8 @@
 import streamlit as st
-from ui.theme import inject_css
+from ui.theme_dark import inject_dark_theme
+
+inject_dark_theme()
+
 
 def topbar():
     st.markdown('<div class="topbar">', unsafe_allow_html=True)

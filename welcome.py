@@ -1,92 +1,127 @@
 import streamlit as st
 from pathlib import Path
-from ui.theme import inject_css
+import base64
+import mimetypes
+
+def _load_bg_as_base64(path: Path):
+    """Convierte la imagen de fondo a base64."""
+    if not path.exists():
+        return None, None
+    mime, _ = mimetypes.guess_type(str(path))
+    if mime is None:
+        mime = "image/jpeg"
+    b64 = base64.b64encode(path.read_bytes()).decode()
+    return mime, b64
 
 def app():
-    # --- No inyectamos el tema global claro ---
-    # inject_css()  # <- coméntalo para que no aplique el fondo claro
+    # ======== FONDO ========
+    bg_path = Path("images/welcome_bg.jpg")
+    mime, b64 = _load_bg_as_base64(bg_path)
 
-    # ===== CSS oscuro solo para esta página =====
+    if b64:
+        bg_rule = f"background-image:url('data:{mime};base64,{b64}');"
+    else:
+        bg_rule = "background: radial-gradient(1200px 600px at 20% 30%, #1f4dcf22, transparent), #0B1120;"
+
+    # ======== CSS ========
     st.markdown(
-        """
+        f"""
         <style>
-        body, .stApp {
-            background-color: #0B1120 !important;  /* azul oscuro */
-            color: #ffffff !important;             /* texto blanco */
-        }
+        html, body, .stApp {{
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }}
 
-        header[data-testid="stHeader"] {
-            background: linear-gradient(90deg, #1E3A8A, #2563EB); /* barra azul */
-        }
+        body, .stApp {{
+            {bg_rule}
+            background-size: cover !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+        }}
 
-        /* Etiquetas de texto */
-        label, p, h1, h2, h3, h4, h5, h6, div, span {
-            color: #f1f5f9 !important;
-        }
+        [data-testid="stAppViewContainer"] {{
+            background: rgba(0,0,0,0.38) !important;
+            backdrop-filter: blur(6px);
+        }}
 
-        /* Campos de entrada */
-        input[type="text"], input[type="password"] {
-            background-color: #1E293B !important;
-            color: #ffffff !important;
-            border: 1px solid #334155 !important;
-            border-radius: 8px !important;
-        }
+        header[data-testid="stHeader"] {{
+            background: linear-gradient(90deg, #1E3A8A, #2563EB);
+        }}
+
+        main.block-container {{
+            padding: 0 !important;
+            margin: 0 !important;
+            height: 100vh !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }}
+
+        /* ===== CONTENEDOR HERO ===== */
+        .hero-centered {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 1.2rem;
+            max-width: 600px;
+            width: 100%;
+        }}
+
+        /* Logo */
+        .brand img {{
+            width: clamp(200px, 38vw, 380px);
+            height: auto;
+            filter: drop-shadow(0 6px 24px rgba(0,0,0,.35));
+        }}
+
+        /* Texto principal */
+        .title {{
+            color: #60A5FA !important;
+            font-weight: 900 !important;
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            margin: 0.25rem 0 1rem 0;
+            text-shadow: 0 2px 10px rgba(0,0,0,.35);
+        }}
 
         /* Botón principal */
-        div.stButton > button:first-child {
-            background-color: #2563EB !important;
-            color: white !important;
-            font-size: 1.05rem !important;
-            font-weight: 700 !important;
-            border: none !important;
-            border-radius: 10px !important;
-            height: 3rem !important;
-            width: 100% !important;
-            box-shadow: 0 4px 12px rgba(37,99,235,.45);
-            transition: all 0.2s ease;
-        }
-        div.stButton > button:hover {
-            background-color: #1e50d6 !important;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(37,99,235,.65);
-        }
+        div.stButton > button:first-child {{
+            background:#2563EB !important; color:#fff !important;
+            border:0 !important; border-radius:12px !important;
+            height:3.25rem !important; font-size:1.08rem !important; font-weight:800 !important;
+            width: min(520px, 88vw) !important;
+            box-shadow: 0 10px 28px rgba(37,99,235,.45) !important;
+            transition: transform .15s ease, box-shadow .15s ease, filter .15s ease !important;
+        }}
+        div.stButton > button:hover {{
+            filter: brightness(1.05) !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 14px 36px rgba(37,99,235,.55) !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    # ===== Layout dividido =====
-    col1, col2 = st.columns([1.2, 1], gap="large")
+    # ======== CONTENIDO ========
+    st.markdown('<div class="hero-centered">', unsafe_allow_html=True)
 
-    with col1:
-        logo_path = Path("images/horizontal_blue.png")
-        if logo_path.exists():
-            st.image(str(logo_path), width=160)
-        else:
-            st.caption("Coloca tu logo en `images/horizontal_blue.png` (opcional).")
+    logo = Path("images/horizontal_blue.png")
+    if logo.exists():
+        st.markdown('<div class="brand">', unsafe_allow_html=True)
+        st.image(str(logo))
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <h2 style="font-weight:800; margin-bottom:0;">Welcome Back</h2>
-            <p style="color:#CBD5E1; margin-top:0.25rem;">Click to log in</p>
-            """,
-            unsafe_allow_html=True,
-        )
-### SI SE QUIERE INCORPORAR USERS
-       # email = st.text_input("Email Address")
-       # password = st.text_input("Password", type="password")
-### ------------------------------------------------------------------
-        if st.button("Log In", use_container_width=True):
-            st.session_state.role = "Guest"
-            st.session_state.go_home = True
-            st.rerun()
+    st.markdown('<div class="title">Bienvenido</div>', unsafe_allow_html=True)
 
-    with col2:
-        img_path = Path("images/welcome_image.jpg")
-        if img_path.exists():
-            st.image(str(img_path), use_container_width=True)
-        else:
-            st.warning("Sube una imagen a `images/welcome_image.jpg` para mostrar aquí.")
+    if st.button("Inicia Sesión"):
+        st.session_state.role = "Guest"
+        st.session_state.go_home = True
+        st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     app()
