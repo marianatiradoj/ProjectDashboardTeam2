@@ -1,38 +1,40 @@
+# ui/filters.py
 import streamlit as st
 
 TIME_RANGES = ["Últimas 24h", "Última semana", "Último mes"]
 CUADRANTES  = ["Norte", "Sur", "Este", "Oeste"]
 
-KEY_RANGO = "flt_rango_tiempo"
-KEY_CUADS = "flt_cuadrantes"
+def render_filters_block(key_prefix: str = ""):
+    """
+    Dibuja los filtros en el sidebar y devuelve (rango, cuadrantes).
 
-def _ensure_defaults():
-    if KEY_RANGO not in st.session_state:
-        st.session_state[KEY_RANGO] = TIME_RANGES[0]
-    if KEY_CUADS not in st.session_state:
-        st.session_state[KEY_CUADS] = []
+    key_prefix permite que cada página tenga sus propios keys:
+      - Página 1: key_prefix="p1_"
+      - Página 2: key_prefix="p2_"
+    """
+    key_rango = f"{key_prefix}flt_rango_tiempo"
+    key_cuads = f"{key_prefix}flt_cuadrantes"
 
-def render_filters_block():
-    """Dibuja SOLO los filtros (para usarlos dentro del sidebar del menú)."""
-    _ensure_defaults()
     rango = st.selectbox(
         "Rango de Tiempo",
         TIME_RANGES,
-        index=TIME_RANGES.index(st.session_state[KEY_RANGO]),
-        key=KEY_RANGO,
+        key=key_rango,
     )
+
     cuadrantes = st.multiselect(
         "Cuadrante",
         CUADRANTES,
-        default=st.session_state[KEY_CUADS],
-        key=KEY_CUADS,
+        key=key_cuads,
     )
+
     st.divider()
     return rango, cuadrantes
 
-def get_filters():
-    _ensure_defaults()
-    return {
-        "rango_tiempo": st.session_state[KEY_RANGO],
-        "cuadrantes": st.session_state[KEY_CUADS],
-    }
+def get_filters(key_prefix: str = ""):
+    """Lee los filtros desde session_state con el mismo prefix que se usó al dibujarlos."""
+    key_rango = f"{key_prefix}flt_rango_tiempo"
+    key_cuads = f"{key_prefix}flt_cuadrantes"
+
+    rango = st.session_state.get(key_rango, TIME_RANGES[0])
+    cuadrantes = st.session_state.get(key_cuads, [])
+    return {"rango_tiempo": rango, "cuadrantes": cuadrantes}
