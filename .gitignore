@@ -1,0 +1,41 @@
+# --- Entorno virtual ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Python cache ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.pkl
+*.log
+
+# --- Herramientas de test ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Configuración local / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+.streamlit/**/secrets.toml
+
+# --- Datos pesados (ajusta según lo que quieras versionar) ---
+Database/FGJ_CLEAN_Final.csv
+Database/*.parquet
+data/
+*.parquet
+*.csv
+
+# --- Otros ---
+*.bak
+*.tmp
