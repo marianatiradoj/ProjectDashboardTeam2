@@ -1,7 +1,8 @@
 import streamlit as st
-from ui.theme import inject_css
+from ui.theme_dark import inject_css
 
 ROLES = ["Admin", "Decision Maker", "Citizen", "Guest"]
+
 
 def app():
     inject_css()
@@ -11,6 +12,7 @@ def app():
     if st.button("Log in", use_container_width=True):
         st.session_state.role = role
         st.rerun()
+
 
 if __name__ == "__main__":
     app()
