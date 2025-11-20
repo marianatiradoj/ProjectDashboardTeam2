@@ -1,157 +1,102 @@
 # components/charts_eda/top5_crimes.py
-import streamlit as st
+from typing import Optional, Tuple
+
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
+import streamlit as st
 
-# === Columnas reales del CSV ===
-DELITO_COL     = "delito_grupo_macro"
-HORA_COL       = "hora_hecho"
-MES_COL        = "mes_hecho"
-DIA_SEMANA_COL = "dia"
-ZONA_COL       = "alcaldia_hecho"
-
-# Ruta al CSV (relativa al proyecto)
-DATA_PATH = Path("Database") / "FGJ_CLEAN_Final.csv"
-
-
-@st.cache_data(show_spinner="Cargando base de delitos...")
-def load_crime_data() -> pd.DataFrame:
-    """Carga el CSV de delitos con cache. Asumimos que la base ya viene limpia."""
-    df = pd.read_csv(DATA_PATH)
-
-    # Nos aseguramos de que la hora sea numérica (0–23)
-    if HORA_COL in df.columns:
-        df[HORA_COL] = pd.to_numeric(df[HORA_COL], errors="coerce").astype("Int64")
-
-    return df
-
-
-def _filter_data(
-    df: pd.DataFrame,
-    hour_range: tuple[int, int] | None,
-    mes: str,
-    dia_semana: str,
-    alcaldia: str,
-) -> pd.DataFrame:
-    """Aplica filtros básicos sobre hora, mes, día y alcaldía."""
-    mask = pd.Series(True, index=df.index)
-
-    # Filtro por hora
-    if hour_range is not None and HORA_COL in df.columns:
-        h_min, h_max = hour_range
-        mask &= df[HORA_COL].between(h_min, h_max, inclusive="both")
-
-    # Filtro por mes (si el usuario no eligió 'Todos')
-    if mes != "Todos" and MES_COL in df.columns:
-        mask &= df[MES_COL] == mes
-
-    # Filtro por día de la semana
-    if dia_semana != "Todos" and DIA_SEMANA_COL in df.columns:
-        mask &= df[DIA_SEMANA_COL] == dia_semana
-
-    # Filtro por alcaldía (mientras no hay zona)
-    if alcaldia != "Todas" and ZONA_COL in df.columns:
-        mask &= df[ZONA_COL] == alcaldia
-
-    return df[mask]
+from .base import (
+    PALETTE,
+    DELITO_MACRO_COL,
+    apply_common_filters,
+)
 
 
 def render_top5_crimes_bar(
-    hour_range: tuple[int, int] | None,
+    df: pd.DataFrame,
+    hour_range: Optional[Tuple[int, int]],
     mes: str,
     dia_semana: str,
-    alcaldia: str,
+    zona: str,
 ):
     """
-    Renderiza una gráfica de barras con los 5 grupos de delitos más comunes,
-    en porcentaje, usando filtros de hora, mes, día y alcaldía.
-
-    Nota: el filtro de tipo de crimen NO se aplica aquí (por diseño).
+    Barplot corporativo TOP 5 de delito_grupo_macro (porcentaje),
+    filtrado por hora/mes/día/zona, pero IGNORANDO tipo de crimen.
     """
-    df = load_crime_data()
+    df_f = apply_common_filters(
+        df,
+        hour_range=hour_range,
+        mes=mes,
+        dia_semana=dia_semana,
+        zona=zona,
+        tipos_crimen=None,  # 👈 clave: no filtramos por tipo de crimen aquí
+    )
 
-    if DELITO_COL not in df.columns:
-        st.error(f"No encontré la columna '{DELITO_COL}' en el CSV.")
+    if df_f.empty or DELITO_MACRO_COL not in df_f.columns:
+        st.info("No hay datos para los filtros seleccionados (Top 5).")
         return
-
-    # 1) Filtrar datos
-    df_f = _filter_data(df, hour_range, mes, dia_semana, alcaldia)
-
-    if df_f.empty:
-        st.info("No hay datos para los filtros seleccionados.")
-        return
-
-    # 2) Agrupar y calcular Top 5
-    total = len(df_f)
 
     counts = (
-        df_f.groupby(DELITO_COL)
-        .size()
-        .sort_values(ascending=False)
+        df_f[DELITO_MACRO_COL]
+        .value_counts(normalize=False)
         .head(5)
-        .reset_index(name="conteo")
+        .reset_index()
     )
+    counts.columns = [DELITO_MACRO_COL, "conteo"]
 
-    if counts.empty:
-        st.info("No hay delitos suficientes para mostrar el Top 5.")
+    total = counts["conteo"].sum()
+    if total == 0:
+        st.info("No hay datos para los filtros seleccionados (Top 5).")
         return
 
-    # 3) Calcular porcentaje
-    counts["porcentaje"] = (counts["conteo"] / total) * 100
+    counts["porcentaje"] = counts["conteo"] / total * 100
+    st.caption(f"Registros tras filtros (Top 5): {total:,.0f}".replace(",", " "))
 
-    # 4) Graficar en modo oscuro, tonos azules y contorno blanco suave
-    fig, ax = plt.subplots(figsize=(8, 4))
+    # -------- FIGURA --------
+    counts = counts.sort_values("porcentaje", ascending=False)
 
-    # Paleta monocromática azul
+    fig, ax = plt.subplots(figsize=(6, 3.4), dpi=150)
+    fig.patch.set_facecolor(PALETTE["bg_fig"])
+    ax.set_facecolor(PALETTE["bg_axes"])
+
     colors = [
-        "#1E40AF",
-        "#2563EB",
-        "#3B82F6",
-        "#60A5FA",
-        "#93C5FD",
-    ]
-    colors = colors[: len(counts)]
+        PALETTE["bar_light"],
+        PALETTE["bar_main"],
+        PALETTE["bar_dark"],
+        "#1E3A8A",
+        "#1D4ED8",
+    ][: len(counts)]
 
-    # --- Crear las barras ---
-    rects = ax.bar(counts[DELITO_COL], counts["porcentaje"], color=colors)
+    bars = ax.bar(
+        counts[DELITO_MACRO_COL],
+        counts["porcentaje"],
+        color=colors,
+        edgecolor="white",
+        linewidth=0.8,
+    )
 
-    # --- Contorno blanco suave ---
-    for r in rects:
-        r.set_edgecolor("white")
-        r.set_linewidth(0.8)
-        r.set_alpha(0.92)
-
-    # --- Etiquetas encima del barplot (% con 1 decimal) ---
-    for i, value in enumerate(counts["porcentaje"]):
+    for bar, pct in zip(bars, counts["porcentaje"]):
         ax.text(
-            i,
-            value + 0.5,
-            f"{value:.1f}%",
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.8,
+            f"{pct:.1f}%",
             ha="center",
-            color="#E5E7EB",
-            fontsize=10,
+            va="bottom",
+            fontsize=9,
+            color=PALETTE["text"],
         )
 
-    # --- Estilo del gráfico ---
-    ax.set_title(
-        "Distribución de grupo de delitos (Top 5)",
-        fontsize=12,
-        color="#E5E7EB",
-        pad=10,
-    )
-    ax.set_ylabel("Porcentaje (%)", color="#E5E7EB")
-    ax.set_xlabel("Tipo de delito", color="#E5E7EB")
+    ax.set_ylabel("Porcentaje de delitos (%)", fontsize=10, color=PALETTE["text"])
+    ax.set_xlabel("")
+    ax.tick_params(axis="x", labelrotation=20, labelsize=9, colors=PALETTE["text"])
+    ax.tick_params(axis="y", labelsize=9, colors=PALETTE["text"])
 
-    ax.set_xticklabels(counts[DELITO_COL], rotation=20, ha="right", color="#E5E7EB")
+    # Grid sutil
+    ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color=PALETTE["grid"], alpha=0.7)
+    ax.set_axisbelow(True)
 
-    # Fondo oscuro y ejes
-    ax.set_facecolor("#020617")
-    fig.patch.set_alpha(0)
-    ax.tick_params(colors="#E5E7EB")
     for spine in ax.spines.values():
-        spine.set_color("#1F2937")
-
-    ax.grid(axis="y", alpha=0.25, color="#475569")
+        spine.set_color(PALETTE["grid"])
+        spine.set_linewidth(0.7)
 
     st.pyplot(fig, clear_figure=True)

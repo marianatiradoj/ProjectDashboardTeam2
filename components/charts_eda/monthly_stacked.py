@@ -1,193 +1,157 @@
 # components/charts_eda/monthly_stacked.py
-import streamlit as st
+from typing import Optional, Tuple, List
+
 import pandas as pd
 import matplotlib.pyplot as plt
+import streamlit as st
 
-from .top5_crimes import (
-    load_crime_data,
-    HORA_COL,
-    MES_COL,
-    DIA_SEMANA_COL,
-    ZONA_COL,
-    DELITO_COL,
+from .base import (
+    PALETTE,
+    MONTH_COL,          # normalmente "mes_hecho"
+    DELITO_MACRO_COL,   # normalmente "delito_grupo_macro"
+    apply_common_filters,
 )
 
-# Orden sugerido de meses (por si vienen como texto)
-MONTH_ORDER = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+
+# Orden “bonito” de meses en español; usaremos sólo los que existan en el df
+MESES_ORDENADOS: List[str] = [
+    "ENERO",
+    "FEBRERO",
+    "MARZO",
+    "ABRIL",
+    "MAYO",
+    "JUNIO",
+    "JULIO",
+    "AGOSTO",
+    "SEPTIEMBRE",
+    "OCTUBRE",
+    "NOVIEMBRE",
+    "DICIEMBRE",
 ]
 
 
-def _filter_data_for_monthly(
-    df: pd.DataFrame,
-    hour_range: tuple[int, int] | None,
-    mes: str,
-    dia_semana: str,
-    alcaldia: str,
-    tipos_crimen: list[str] | None = None,
-) -> pd.DataFrame:
-    """Filtros para la barra apilada mensual."""
-    mask = pd.Series(True, index=df.index)
-
-    # Hora
-    if hour_range is not None and HORA_COL in df.columns:
-        h_min, h_max = hour_range
-        mask &= df[HORA_COL].between(h_min, h_max, inclusive="both")
-
-    # Mes: aquí respetamos el filtro si NO es "Todos"
-    if mes != "Todos" and MES_COL in df.columns:
-        mask &= df[MES_COL] == mes
-
-    # Día semana
-    if dia_semana != "Todos" and DIA_SEMANA_COL in df.columns:
-        mask &= df[DIA_SEMANA_COL] == dia_semana
-
-    # Alcaldía (zona)
-    if alcaldia != "Todas" and ZONA_COL in df.columns:
-        mask &= df[ZONA_COL] == alcaldia
-
-    # Tipo(s) de crimen — solo si el usuario seleccionó algo
-    if tipos_crimen:
-        if DELITO_COL in df.columns:
-            mask &= df[DELITO_COL].isin(tipos_crimen)
-
-    return df[mask]
-
-
 def render_monthly_stacked_percent(
-    hour_range: tuple[int, int] | None,
+    df: pd.DataFrame,
+    hour_range: Optional[Tuple[int, int]],
     mes: str,
     dia_semana: str,
-    alcaldia: str,
-    tipos_crimen: list[str] | None = None,
-    top_n: int = 4,
-):
+    zona: str,
+    tipos_crimen: Optional[list],
+) -> None:
     """
-    Gráfica 4:
-    Barras 100% apiladas del porcentaje de delitos por mes.
-    - X: mes_hecho
-    - Y: 100% (composición)
-    - Segmentos: grupos de delito (Top N + 'Otros')
+    Barras apiladas: porcentaje de cada delito_grupo_macro dentro de cada mes.
+
+    - Respeta los mismos filtros globales (hora, mes, día, zona, tipos_crimen).
+    - Si 'mes' = "Todos", usa todos los meses.
+    - Si no hay datos, muestra un mensaje amigable.
     """
-    df = load_crime_data()
 
-    if MES_COL not in df.columns or DELITO_COL not in df.columns:
-        st.error("Faltan columnas 'mes_hecho' o 'delito_grupo_macro' en el dataset.")
-        return
+    # 1) Aplicar filtros comunes (misma función que usan las otras gráficas)
+    df_f = apply_common_filters(
+        df,
+        hour_range=hour_range,
+        mes=mes,
+        dia_semana=dia_semana,
+        zona=zona,
+        tipos_crimen=tipos_crimen,
+    )
 
-    df_f = _filter_data_for_monthly(df, hour_range, mes, dia_semana, alcaldia, tipos_crimen)
-
-    df_f = df_f.dropna(subset=[MES_COL, DELITO_COL]).copy()
-    if df_f.empty:
+    if df_f.empty or MONTH_COL not in df_f.columns or DELITO_MACRO_COL not in df_f.columns:
         st.info("No hay datos para los filtros seleccionados (barras apiladas mensuales).")
         return
 
-    # Normalizamos el orden de meses usando MONTH_ORDER cuando sea posible
-    df_f[MES_COL] = pd.Categorical(
-        df_f[MES_COL],
-        categories=MONTH_ORDER,
-        ordered=True,
-    )
-
-    # === Top N delitos ===
-    total_por_delito = (
-        df_f.groupby(DELITO_COL)
-        .size()
-        .sort_values(ascending=False)
-    )
-
-    top_delitos = total_por_delito.head(top_n).index.tolist()
-
-    # Reetiquetar delitos fuera del top como "Otros"
-    df_f["delito_simplificado"] = df_f[DELITO_COL].where(
-        df_f[DELITO_COL].isin(top_delitos),
-        other="Otros",
-    )
-
-    # Pivot: filas = mes, columnas = delito_simplificado, valores = conteo
-    pivot = (
-        df_f.groupby([MES_COL, "delito_simplificado"])
+    # 2) Agrupar por mes y tipo de delito
+    grouped = (
+        df_f.groupby([MONTH_COL, DELITO_MACRO_COL])
         .size()
         .reset_index(name="conteo")
-        .pivot_table(
-            index=MES_COL,
-            columns="delito_simplificado",
-            values="conteo",
-            fill_value=0,
-        )
-        .sort_index(axis=0)
     )
 
-    if pivot.empty:
-        st.info("No hay suficientes datos para construir la composición mensual.")
+    if grouped["conteo"].sum() == 0:
+        st.info("No hay datos para los filtros seleccionados (barras apiladas mensuales).")
         return
 
-    # Convertir a porcentajes por fila (mes)
-    pivot_pct = pivot.div(pivot.sum(axis=1), axis=0) * 100
+    # 3) Calcular porcentaje dentro de cada mes
+    grouped["total_mes"] = grouped.groupby(MONTH_COL)["conteo"].transform("sum")
+    grouped["porcentaje"] = grouped["conteo"] / grouped["total_mes"] * 100
 
-    # ================== PLOT ==================
-    fig, ax = plt.subplots(figsize=(9, 4))
+    # 4) Pivotear a tabla ancho: filas = mes, columnas = delito_grupo_macro
+    pivot = (
+        grouped
+        .pivot(index=MONTH_COL, columns=DELITO_MACRO_COL, values="porcentaje")
+        .fillna(0.0)
+    )
 
-    # Paleta en tonos azules/teal
-    palette = [
-        "#1E40AF",  # navy
-        "#2563EB",  # blue
-        "#38BDF8",  # sky
-        "#22D3EE",  # cyan
-        "#64748B",  # gris-azulado para "Otros"
+    # 5) Ordenar meses de forma lógica (sólo los que existan en el df)
+    meses_presentes = [m for m in MESES_ORDENADOS if m in pivot.index]
+    if meses_presentes:
+        pivot = pivot.loc[meses_presentes]
+    else:
+        # fallback: orden alfabético
+        pivot = pivot.sort_index()
+
+    if pivot.empty:
+        st.info("No hay datos para los filtros seleccionados (barras apiladas mensuales).")
+        return
+
+    # 6) Construir la gráfica de barras apiladas
+    fig, ax = plt.subplots(figsize=(7, 3.6), dpi=150)
+    fig.patch.set_facecolor(PALETTE["bg_fig"])
+    ax.set_facecolor(PALETTE["bg_axes"])
+
+    # Paleta para cada categoría de delito
+    base_colors = [
+        PALETTE["bar_light"],
+        PALETTE["bar_main"],
+        PALETTE["bar_dark"],
+        "#1E3A8A",
+        "#1D4ED8",
+        "#60A5FA",
+        "#93C5FD",
     ]
+    n_cols = len(pivot.columns)
+    colors = (base_colors * ((n_cols // len(base_colors)) + 1))[:n_cols]
 
-    meses = list(pivot_pct.index)
-    x = range(len(meses))
-
-    bottom = [0] * len(meses)
-
-    for i, col in enumerate(pivot_pct.columns):
-        valores = pivot_pct[col].values
-        color = palette[i % len(palette)]
+    bottom = None
+    for idx, (col, color) in enumerate(zip(pivot.columns, colors)):
+        values = pivot[col].values
+        if idx == 0:
+            bottom = None
         ax.bar(
-            x,
-            valores,
+            pivot.index,
+            values,
             bottom=bottom,
+            label=col,
             color=color,
-            label=str(col),
             edgecolor="white",
             linewidth=0.6,
         )
-        # Actualizar base para el siguiente segmento
-        bottom = [b + v for b, v in zip(bottom, valores)]
+        if bottom is None:
+            bottom = values
+        else:
+            bottom = bottom + values
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(meses, rotation=20, ha="right", color="#E5E7EB")
+    # 7) Estética
+    ax.set_ylim(0, 100)
+    ax.set_ylabel("Porcentaje dentro de cada mes (%)", color=PALETTE["text"], fontsize=10)
+    ax.set_xlabel("")
+    ax.tick_params(axis="x", rotation=35, labelsize=9, colors=PALETTE["text"])
+    ax.tick_params(axis="y", labelsize=9, colors=PALETTE["text"])
 
-    ax.set_ylabel("Porcentaje (%)", color="#E5E7EB")
-    ax.set_xlabel("Mes", color="#E5E7EB")
-    ax.set_title(
-        "Composición mensual de delitos (Top grupos + Otros)",
-        fontsize=12,
-        color="#E5E7EB",
-        pad=10,
-    )
-
-    # Fondo oscuro y estilo
-    ax.set_facecolor("#020617")
-    fig.patch.set_alpha(0)
-    ax.tick_params(colors="#E5E7EB")
+    ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color=PALETTE["grid"], alpha=0.7)
+    ax.set_axisbelow(True)
     for spine in ax.spines.values():
-        spine.set_color("#1F2937")
+        spine.set_color(PALETTE["grid"])
+        spine.set_linewidth(0.7)
 
-    ax.grid(axis="y", alpha=0.25, color="#475569")
-
-    # Leyenda
+    # Leyenda fuera, estilo dashboard
     ax.legend(
         title="Grupo de delito",
-        facecolor="#020617",
-        edgecolor="#1F2937",
-        labelcolor="#E5E7EB",
         fontsize=8,
         title_fontsize=9,
-        loc="upper right",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        frameon=False,
     )
 
     st.pyplot(fig, clear_figure=True)

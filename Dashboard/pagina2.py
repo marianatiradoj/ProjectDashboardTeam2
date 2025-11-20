@@ -1,93 +1,91 @@
+# Dashboard/pagina2.py
 import streamlit as st
+
 from ui.theme_dark import inject_dark_theme
 from ui.sidebar_menu import render_sidebar_menu
+
+from components.charts_eda import (
+    render_top5_crimes_bar,
+    render_hourly_heatmap,
+    render_weekly_timeseries,
+    render_monthly_stacked_percent,
+    load_crime_data,
+)
 
 st.set_page_config(page_title="Datos Históricos", layout="wide")
 inject_dark_theme()
 
-render_sidebar_menu(show_filters=True, key_prefix="p2_")
+render_sidebar_menu(show_filters=False)
 
-# ===== Título principal =====
+df = load_crime_data()
+
+# ===== Filtros =====
+with st.sidebar:
+    st.subheader("Filtros EDA")
+
+    zonas = ["Todas"] + sorted(df["region_cdmx"].dropna().unique().tolist())
+    zona = st.selectbox("Zona", zonas, key="p2_zona")
+
+    hora_rango = st.slider(
+        "Hora del día",
+        min_value=0,
+        max_value=23,
+        value=(0, 23),
+        step=1,
+        key="p2_hora_rango",
+    )
+
+    meses = ["Todos"] + sorted(df["mes_hecho"].dropna().unique().tolist())
+    mes = st.selectbox("Mes", meses, key="p2_mes")
+
+    dias = ["Todos"] + sorted(df["dia"].dropna().unique().tolist())
+    dia_semana = st.selectbox("Día de la semana", dias, key="p2_dia_semana")
+
+    delitos_unicos = sorted(df["delito_grupo_macro"].dropna().unique().tolist())
+    tipos_crimen = st.multiselect(
+        "Tipo de crimen",
+        delitos_unicos,
+        key="p2_tipos_crimen",
+    )
+
+# ===== Layout =====
 st.title("Datos Históricos")
-st.caption("Visualización exploratoria de los datos (EDA).")
-
+st.caption("Exploración visual del comportamiento delictivo")
 st.divider()
 
-# ===== Layout 2 x 2 para 4 gráficas =====
-col1, col2 = st.columns(2, gap="large")
+col1, col2 = st.columns(2)
 
-# --- Columna izquierda ---
+# --- Izquierda ---
 with col1:
-    st.subheader("Gráfica 1")
-    graf1 = st.empty()   # aquí luego metemos, por ejemplo: render_eda_chart1()
-    graf1.markdown(
-        """
-        <div style="
-            width:100%;
-            height:260px;
-            border-radius:14px;
-            border:1px dashed rgba(148,163,184,.6);
-            background: rgba(15,23,42,.65);
-            display:flex;align-items:center;justify-content:center;
-        ">
-          <span style="opacity:.8">Espacio reservado para Gráfica 1</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.subheader("Distribución de grupo de delitos (Top 5)")
+    render_top5_crimes_bar(
+        df,
+        hour_range=hora_rango,
+        mes=mes,
+        dia_semana=dia_semana,
+        zona=zona,   # ✔ corregido
     )
 
-    st.subheader("Gráfica 2")
-    graf2 = st.empty()
-    graf2.markdown(
-        """
-        <div style="
-            width:100%;
-            height:260px;
-            border-radius:14px;
-            border:1px dashed rgba(148,163,184,.6);
-            background: rgba(15,23,42,.65);
-            display:flex;align-items:center;justify-content:center;
-        ">
-          <span style="opacity:.8">Espacio reservado para Gráfica 2</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.subheader("Heatmap horas vs día")
+    render_hourly_heatmap(
+        df,
+        hour_range=hora_rango,
+        mes=mes,
+        dia_semana=dia_semana,
+        zona=zona,
+        tipos_crimen=tipos_crimen,
     )
 
-# --- Columna derecha ---
+# --- Derecha ---
 with col2:
-    st.subheader("Gráfica 3")
-    graf3 = st.empty()
-    graf3.markdown(
-        """
-        <div style="
-            width:100%;
-            height:260px;
-            border-radius:14px;
-            border:1px dashed rgba(148,163,184,.6);
-            background: rgba(15,23,42,.65);
-            display:flex;align-items:center;justify-content:center;
-        ">
-          <span style="opacity:.8">Espacio reservado para Gráfica 3</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.subheader("Serie semanal por día")
+    render_weekly_timeseries(
+        df,
+        hour_range=hora_rango,
+        mes=mes,
+        zona=zona,
+        tipos_crimen=tipos_crimen,  # ✔ corregido
     )
 
-    st.subheader("Gráfica 4")
-    graf4 = st.empty()
-    graf4.markdown(
-        """
-        <div style="
-            width:100%;
-            height:260px;
-            border-radius:14px;
-            border:1px dashed rgba(148,163,184,.6);
-            background: rgba(15,23,42,.65);
-            display:flex;align-items:center;justify-content:center;
-        ">
-          <span style="opacity:.8">Espacio reservado para Gráfica 4</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.subheader("Composición mensual (%)")
+

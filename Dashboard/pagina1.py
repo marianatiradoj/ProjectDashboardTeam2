@@ -6,7 +6,7 @@ st.set_page_config(page_title="Panel Principal", layout="wide")
 inject_dark_theme()
 
 # Sidebar: Menú + Filtros, con prefijo único para esta página
-render_sidebar_menu(show_filters=True, key_prefix="p1_")
+render_sidebar_menu()
 
 # ===== Botón superior =====
 if st.button("Haz una pregunta", key="ask", type="primary", use_container_width=True):
