@@ -88,4 +88,11 @@ with col2:
     )
 
     st.subheader("Composición mensual (%)")
+    render_monthly_stacked_percent(
+        df,
+        hour_range=hora_rango,
+        mes=mes,            # se ignora dentro de la función
+        zona=zona,
+        tipos_crimen=tipos_crimen,
+    )
 
