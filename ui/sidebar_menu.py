@@ -1,24 +1,32 @@
-# ui/sidebar_menu.py
 import streamlit as st
 
 
 def render_sidebar_menu(show_filters: bool = True, key_prefix: str = ""):
     """
-    Sidebar sencillo:
-      - Menú con las 4 páginas
-      - SIN filtros globales (los filtros del EDA viven dentro de pagina2.py)
-
-    Los parámetros show_filters y key_prefix se dejan para no romper llamadas
-    anteriores, pero aquí no se usan.
+    Sidebar único del sistema (no usa st.page_link).
+    La navegación se hace con st.switch_page().
     """
+
     with st.sidebar:
-        st.subheader("📌 Menú")
+        st.markdown("### 📌 Menú")
 
-        # 👇 Ajusta las rutas si tus archivos se llaman diferente
-        st.page_link("Dashboard/pagina1.py", label="Página 1", icon=":material/map:")
-        st.page_link("Dashboard/pagina2.py", label="Página 2", icon=":material/insights:")
-        st.page_link("Dashboard/pagina3.py", label="Página 3", icon=":material/neurology:")
-        st.page_link("Dashboard/pagina4.py", label="Página 4", icon=":material/table_view:")
+        if st.button(
+            "Página 1 – Panel principal", key="sb_p1", use_container_width=True
+        ):
+            st.switch_page("Dashboard/pagina1.py")
 
-        st.markdown("---")
-        # Nada de filtros aquí. Los filtros específicos se dibujan en cada página.
+        if st.button(
+            "Página 2 – Datos históricos", key="sb_p2", use_container_width=True
+        ):
+            st.switch_page("Dashboard/pagina2.py")
+
+        if st.button("Página 3 – Chatbot", key="sb_p3", use_container_width=True):
+            st.switch_page("Dashboard/pagina3.py")
+
+        if st.button("Página 4 – EDA & carga", key="sb_p4", use_container_width=True):
+            st.switch_page("Dashboard/pagina4.py")
+
+        if show_filters:
+            st.markdown("---")
+            st.markdown("#### 🎛️ Filtros")
+            st.caption("Los filtros propios de cada página aparecen aquí.")
