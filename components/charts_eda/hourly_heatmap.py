@@ -1,7 +1,8 @@
 # components/charts_eda/hourly_heatmap.py
-from typing import Optional, Tuple, List
+from __future__ import annotations
 
-import numpy as np
+from typing import Iterable, Optional, Tuple
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -18,20 +19,25 @@ from .base import (
 def render_hourly_heatmap(
     df: pd.DataFrame,
     hour_range: Optional[Tuple[int, int]],
-    mes: str,
-    dia_semana: str,   # lo ignoramos porque el eje ya es día completo
-    zona: str,
-    tipos_crimen: Optional[List[str]],
-):
+    mes: Optional[str],
+    dia_semana: Optional[str],
+    zona: Optional[str],
+    tipos_crimen: Optional[Iterable[str]],
+) -> None:
     """
-    Heatmap de número de delitos por (día de la semana, hora).
-    Sí respeta tipo de crimen.
+    Heatmap Día de la semana vs Hora del día.
+
+    - Filtra por rango horario, mes, día específico, zona y tipo de crimen.
+    - El eje X SOLO muestra las horas dentro del rango seleccionado
+      (por ejemplo, 0–10) sin dejar columnas en blanco.
     """
+
+    # 1) Aplicar filtros comunes (incluye hour_range)
     df_f = apply_common_filters(
         df,
         hour_range=hour_range,
         mes=mes,
-        dia_semana="Todos",  # eje es toda la semana
+        dia_semana=dia_semana,
         zona=zona,
         tipos_crimen=tipos_crimen,
     )
@@ -40,46 +46,74 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # Conteos por día x hora
-    table = (
+    # 2) Agrupar por día y hora
+    grp = (
         df_f.groupby([DIA_COL, HOUR_COL])
         .size()
         .reset_index(name="conteo")
     )
 
-    # Reindexar días en orden lógico
-    table[DIA_COL] = table[DIA_COL].astype(str).str.upper()
-    pivot = (
-        table.pivot(index=DIA_COL, columns=HOUR_COL, values="conteo")
-        .reindex(index=DAY_ORDER)
-        .fillna(0)
-    )
+    if grp.empty:
+        st.info("No hay datos para los filtros seleccionados (heatmap).")
+        return
 
-    # Asegurarnos de tener columnas 0–23
-    hours = list(range(24))
-    pivot = pivot.reindex(columns=hours, fill_value=0)
+    # 3) Tabla dinámica: filas = día, columnas = hora
+    pivot = grp.pivot(
+        index=DIA_COL,
+        columns=HOUR_COL,
+        values="conteo",
+    ).fillna(0)
 
-    fig, ax = plt.subplots(figsize=(6, 3.4), dpi=150)
+    # Ordenar días de la semana
+    ordered_days = [d for d in DAY_ORDER if d in pivot.index]
+    pivot = pivot.loc[ordered_days]
+
+    # 4) Limitar columnas a las horas seleccionadas en el slider
+    if hour_range is not None:
+        h0, h1 = hour_range
+        # horas enteras dentro del rango
+        cols = [h for h in range(h0, h1 + 1)]
+        pivot = pivot.reindex(columns=cols, fill_value=0)
+    else:
+        # si no hay rango, usamos todas las horas presentes
+        cols = sorted(pivot.columns)
+        pivot = pivot[cols]
+
+    if pivot.empty:
+        st.info("No hay datos para los filtros seleccionados (heatmap).")
+        return
+
+    # 5) Construir figura
+    fig, ax = plt.subplots(figsize=(6.4, 3.6), dpi=150)
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax.set_facecolor(PALETTE["bg_axes"])
 
+    data = pivot.values
+
     im = ax.imshow(
-        pivot.values,
+        data,
         aspect="auto",
         cmap="Blues",
         origin="upper",
     )
 
-    ax.set_xticks(range(len(hours)))
-    ax.set_xticklabels(hours, fontsize=7, rotation=45, color=PALETTE["text"])
+    # Ejes
     ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels(pivot.index, fontsize=9, color=PALETTE["text"])
+    ax.set_yticklabels(pivot.index, fontsize=11, color=PALETTE["text"])
 
-    ax.set_xlabel("Hora del día", fontsize=9, color=PALETTE["text"])
-    ax.set_ylabel("Día de la semana", fontsize=9, color=PALETTE["text"])
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels(pivot.columns, fontsize=9, rotation=35, color=PALETTE["text"])
 
+    ax.set_xlabel("Hora del día", fontsize=12, color=PALETTE["text"])
+    ax.set_ylabel("Día de la semana", fontsize=12, color=PALETTE["text"])
+
+    for spine in ax.spines.values():
+        spine.set_color(PALETTE["grid"])
+        spine.set_linewidth(0.6)
+
+    # 6) Barra de color
     cbar = fig.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel("Número de delitos", fontsize=8, color=PALETTE["text"])
-    cbar.ax.tick_params(labelsize=7, colors=PALETTE["text"])
+    cbar.set_label("Número de delitos", fontsize=11, color=PALETTE["text"])
+    cbar.ax.tick_params(labelsize=9, colors=PALETTE["text"])
 
     st.pyplot(fig, clear_figure=True)

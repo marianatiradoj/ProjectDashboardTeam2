@@ -29,7 +29,7 @@ def render_top5_crimes_bar(
         mes=mes,
         dia_semana=dia_semana,
         zona=zona,
-        tipos_crimen=None,  # 👈 clave: no filtramos por tipo de crimen aquí
+        tipos_crimen=None, 
     )
 
     if df_f.empty or DELITO_MACRO_COL not in df_f.columns:
@@ -88,8 +88,8 @@ def render_top5_crimes_bar(
 
     ax.set_ylabel("Porcentaje de delitos (%)", fontsize=10, color=PALETTE["text"])
     ax.set_xlabel("")
-    ax.tick_params(axis="x", labelrotation=20, labelsize=9, colors=PALETTE["text"])
-    ax.tick_params(axis="y", labelsize=9, colors=PALETTE["text"])
+    ax.tick_params(axis="x", labelrotation=20, labelsize=10, colors=PALETTE["text"])
+    ax.tick_params(axis="y", labelsize=10, colors=PALETTE["text"])
 
     # Grid sutil
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color=PALETTE["grid"], alpha=0.7)

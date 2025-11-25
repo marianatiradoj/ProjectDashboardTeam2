@@ -71,10 +71,10 @@ def render_weekly_timeseries(
             color=PALETTE["text"],
         )
 
-    ax.set_xlabel("Día de la semana", fontsize=9, color=PALETTE["text"])
-    ax.set_ylabel("Número de delitos", fontsize=9, color=PALETTE["text"])
-    ax.tick_params(axis="x", labelrotation=20, labelsize=9, colors=PALETTE["text"])
-    ax.tick_params(axis="y", labelsize=9, colors=PALETTE["text"])
+    ax.set_xlabel("Día de la semana", fontsize=10, color=PALETTE["text"])
+    ax.set_ylabel("Número de delitos", fontsize=10, color=PALETTE["text"])
+    ax.tick_params(axis="x", labelrotation=20, labelsize=10, colors=PALETTE["text"])
+    ax.tick_params(axis="y", labelsize=10, colors=PALETTE["text"])
 
     ax.yaxis.grid(True, linestyle="--", linewidth=0.4, color=PALETTE["grid"], alpha=0.7)
     ax.set_axisbelow(True)

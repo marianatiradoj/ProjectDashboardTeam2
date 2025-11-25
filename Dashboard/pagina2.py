@@ -1,27 +1,38 @@
 # Dashboard/pagina2.py
 import streamlit as st
-
-from ui.theme_dark import inject_dark_theme
-from ui.sidebar_menu import render_sidebar_menu
+from ui.theme_dark import apply_theme
+from core.data_loader import load_central_dataset
 
 from components.charts_eda import (
     render_top5_crimes_bar,
     render_hourly_heatmap,
     render_weekly_timeseries,
     render_monthly_stacked_percent,
-    load_crime_data,
 )
 
-st.set_page_config(page_title="Datos Históricos", layout="wide")
-inject_dark_theme()
 
-render_sidebar_menu(show_filters=False)
+# --- Initial configuration and global theme ---
+st.set_page_config(
+    page_title="Tendencias Históricas del Crimen (2016–2024)",
+    layout="wide",
+)
+apply_theme()
 
-df = load_crime_data()
+st.title("Tendencias Históricas del Crimen (2016–2024)")
+st.caption("A través de estas visualizaciones podrás identificar patrones, tendencias y variaciones " \
+"en la incidencia delictiva según horario, día de la semana, mes, zona geográfica y tipo de delito. " \
+"Los gráficos permiten analizar cómo se distribuyen los eventos en distintos periodos y regiones, " \
+"facilitando una comprensión más profunda de las dinámicas de seguridad en la ciudad.")
+st.divider()
 
-# ===== Filtros =====
+
+# --- Load central historical dataset ---
+df = load_central_dataset()
+
+
+# --- Sidebar filters for this dashboard ---
 with st.sidebar:
-    st.subheader("Filtros EDA")
+    st.subheader("Filtros del Dashboard")
 
     zonas = ["Todas"] + sorted(df["region_cdmx"].dropna().unique().tolist())
     zona = st.selectbox("Zona", zonas, key="p2_zona")
@@ -48,25 +59,23 @@ with st.sidebar:
         key="p2_tipos_crimen",
     )
 
-# ===== Layout =====
-st.title("Datos Históricos")
-st.caption("Exploración visual del comportamiento delictivo")
-st.divider()
 
+# --- Main layout: two-column structure ---
 col1, col2 = st.columns(2)
 
-# --- Izquierda ---
+
+# --- Left column: distribution and heatmap ---
 with col1:
-    st.subheader("Distribución de grupo de delitos (Top 5)")
+    st.subheader("Principales Grupos de Delito — Top 5")
     render_top5_crimes_bar(
         df,
         hour_range=hora_rango,
         mes=mes,
         dia_semana=dia_semana,
-        zona=zona,   # ✔ corregido
+        zona=zona,
     )
 
-    st.subheader("Heatmap horas vs día")
+    st.subheader("Distribución Horaria de Delitos")
     render_hourly_heatmap(
         df,
         hour_range=hora_rango,
@@ -76,23 +85,23 @@ with col1:
         tipos_crimen=tipos_crimen,
     )
 
-# --- Derecha ---
+
+# --- Right column: time series and monthly composition ---
 with col2:
-    st.subheader("Serie semanal por día")
+    st.subheader("Patrón Semanal de Delitos")
     render_weekly_timeseries(
         df,
         hour_range=hora_rango,
         mes=mes,
         zona=zona,
-        tipos_crimen=tipos_crimen,  # ✔ corregido
-    )
-
-    st.subheader("Composición mensual (%)")
-    render_monthly_stacked_percent(
-        df,
-        hour_range=hora_rango,
-        mes=mes,            # se ignora dentro de la función
-        zona=zona,
         tipos_crimen=tipos_crimen,
     )
 
+    st.subheader("Composición Mensual de Delitos (%)")
+    render_monthly_stacked_percent(
+        df,
+        hora_rango,
+        mes=mes,
+        zona=zona,
+        tipos_crimen=tipos_crimen,
+    )

@@ -1,53 +1,171 @@
+# ui/theme_dark.py
+
 import streamlit as st
 
-def inject_dark_theme():
-    """Tema oscuro global + fix selects + oculta panel nativo del sidebar."""
-    st.markdown("""
+
+def apply_theme():
+    css = """
     <style>
-    html, body, .stApp { background-color:#0B1120 !important; color:#E2E8F0 !important; font-family:'Inter',sans-serif !important; }
-    header[data-testid="stHeader"] { background:linear-gradient(90deg,#1E3A8A,#2563EB); color:#fff !important; }
-    section[data-testid="stSidebar"] { background-color:#111827 !important; border-right:1px solid #1E293B !important; }
-    .stSidebar [data-testid="stSidebarNavItems"] a span { color:#E2E8F0 !important; }
-    h1,h2,h3,h4,h5,h6,label,p,span,div { color:#E2E8F0 !important; }
 
-    .stButton>button{
-      background:linear-gradient(90deg,#2563EB,#1E40AF) !important; color:#fff !important; border:none !important; border-radius:10px !important;
-      font-weight:600 !important; box-shadow:0 4px 16px rgba(37,99,235,.35); transition:.2s;
-    }
-    .stButton>button:hover{ background:linear-gradient(90deg,#1E40AF,#1D4ED8) !important; transform:translateY(-2px); box-shadow:0 6px 20px rgba(37,99,235,.55); }
-
-    input[type="text"], input[type="password"], textarea, select {
-      background-color:#1E293B !important; color:#E2E8F0 !important; border:1px solid #334155 !important; border-radius:8px !important;
+    /* ============================================
+       PALETA – CORPORATE BLUE (Moderna y formal)
+       ============================================ */
+    :root {
+        --accent: #4DA3FF;              /* Azul Aurora */
+        --accent-strong: #1E6FFF;       /* Azul intenso */
+        --accent-hover: #8BC3FF;        /* Hover suave */
+        
+        --bg-main: #050816;             /* Fondo general */
+        --bg-sidebar: #0B1120;          /* Sidebar profesional */
+        --border-subtle: #1F2937;
     }
 
-    hr,.stDivider{ border-color:#1E293B !important; }
-    .stTabs [data-baseweb="tab"]{ background:#1E293B !important; color:#E2E8F0 !important; border-radius:10px !important; }
-    [data-testid="stMetricValue"], [data-testid="stMetricLabel"]{ color:#E2E8F0 !important; }
-    a,a:visited{ color:#60A5FA !important; }
-    footer{ visibility:hidden; }
-
-    /* Selects + menú en portal */
-    .stSelectbox label,.stMultiSelect label,label{ color:#e2e8f0 !important; font-weight:600 !important; }
-    div[data-baseweb="select"]>div{ background:#0f172a !important; color:#f8fafc !important; border:1px solid #334155 !important; border-radius:10px !important; }
-    div[data-baseweb="select"] span{ color:#f8fafc !important; }
-    div[data-baseweb="select"] [aria-hidden="true"]{ color:#94a3b8 !important; }
-    div[data-baseweb="tag"]{ background:#1f2937 !important; color:#e5e7eb !important; border:1px solid #334155 !important; }
-
-    body div[data-baseweb="popover"], body div[data-baseweb="menu"], body [role="listbox"]{
-      background:#0a0f1a !important; border:1px solid #1e293b !important; box-shadow:0 12px 28px rgba(0,0,0,.45) !important; color:#e2e8f0 !important;
-    }
-    body [role="listbox"] [role="option"], body [role="listbox"] [role="option"] *{
-      color:#e2e8f0 !important; -webkit-text-fill-color:#e2e8f0 !important; opacity:1 !important; background:transparent !important;
-    }
-    body [role="listbox"] [role="option"]:hover, body [role="listbox"] [role="option"][aria-selected="true"]{
-      background:#2563eb !important; color:#fff !important; -webkit-text-fill-color:#fff !important;
+    /* ============================================
+       FONDO DEL APLICATIVO
+       ============================================ */
+    [data-testid="stAppViewContainer"] {
+        background-color: var(--bg-main) !important;
     }
 
-    /* ❌ Ocultar solo el panel nativo de páginas en el sidebar */
-    section[data-testid="stSidebar"] [data-testid="stSidebarNav"],
-    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"],
-    section[data-testid="stSidebar"] [data-testid="stSidebarPages"]{
-      display:none !important;
+    /* ============================================
+       SIDEBAR — ESTILO PROFESIONAL
+       ============================================ */
+    [data-testid="stSidebar"] > div:first-child {
+        background: linear-gradient(
+            180deg,
+            #0F172A 0%,
+            var(--bg-sidebar) 100%
+        ) !important;
+        border-right: 1px solid #0F1A2E !important;
+        box-shadow: 6px 0px 18px rgba(10, 20, 40, 0.65);
+        padding-top: 1rem !important;
     }
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label {
+        color: #E5E7EB !important;
+    }
+
+    /* Links del menú (Panel) */
+    [data-testid="stSidebar"] a {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.45rem 0.75rem;
+        font-size: 14px !important;
+        border-radius: 10px;
+        color: #E5E7EB !important;
+        transition: background 0.15s ease, transform 0.12s ease;
+    }
+
+    [data-testid="stSidebar"] a:hover {
+        background-color: rgba(77,163,255,0.16) !important;
+        color: #FFFFFF !important;
+        transform: translateX(2px);
+    }
+
+    [data-testid="stSidebar"] a[aria-current="page"] {
+        background: rgba(77,163,255,0.28) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        box-shadow: inset 0 0 0 1px rgba(77,163,255,0.4);
+    }
+
+    /* Separadores */
+    [data-testid="stSidebar"] hr {
+        border-color: rgba(255,255,255,0.08) !important;
+    }
+
+    /* ============================================
+       SELECTBOX / MULTISELECT
+       ============================================ */
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div {
+        background-color: #0D1525 !important;
+        border: 1px solid #1F2937 !important;
+        border-radius: 8px !important;
+        color: white !important;
+    }
+
+    div[data-baseweb="menu"] {
+        background-color: #0A101B !important;
+        border-radius: 10px !important;
+    }
+
+    div[data-baseweb="menu"] li {
+        padding: 10px 14px !important;
+        font-size: 15px !important;
+        border-radius: 6px !important;
+        color: #E5E7EB !important;
+    }
+
+    div[data-baseweb="menu"] li:hover {
+        background-color: var(--accent-hover) !important;
+        color: #0B1120 !important;
+    }
+
+    div[data-baseweb="menu"] li[aria-selected="true"] {
+        background-color: var(--accent) !important;
+        color: #0B1120 !important;
+    }
+
+    /* ============================================
+       SLIDERS
+       ============================================ */
+    .stSlider > div > div > div {
+        color: var(--accent) !important;
+    }
+    .stSlider > div [data-baseweb="slider"] {
+        background-color: var(--accent) !important;
+    }
+
+    /* ============================================
+       BOTONES
+       ============================================ */
+    div.stButton > button {
+        background-color: var(--accent-strong) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+        transition: background 0.15s ease;
+    }
+
+    div.stButton > button:hover {
+        background-color: var(--accent) !important;
+        color: #0B1120 !important;
+    }
+
+    /* ============================================
+       MÉTRICAS
+       ============================================ */
+    [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #BFC5D0 !important;
+    }
+
+    /* ============================================
+       TARJETAS (.panel-card)
+       ============================================ */
+    .panel-card {
+        background: rgba(15,23,42,0.96);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 1rem 1.2rem;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+    }
+
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+
+def inject_dark_theme():
+    apply_theme()
