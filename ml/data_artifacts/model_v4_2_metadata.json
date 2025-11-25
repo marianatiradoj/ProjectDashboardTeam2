@@ -1,0 +1,24 @@
+{
+  "features_total": [
+    "weekday_sin",
+    "weekday_cos",
+    "month_sin",
+    "month_cos",
+    "is_weekend",
+    "quincena_window_numeric",
+    "hour_sin",
+    "hour_cos",
+    "centroid_lat",
+    "centroid_lon",
+    "densidad_hist_norm",
+    "cluster_spatial"
+  ],
+  "tipo_cols": [
+    "count_tipo_LETHAL_VIOLENT",
+    "count_tipo_LOW_IMPACT",
+    "count_tipo_NON_CRIME_OTHER",
+    "count_tipo_ROBBERY_PERSON",
+    "count_tipo_ROBBERY_PROPERTY",
+    "count_tipo_VIOLENT_OTHER"
+  ]
+}
