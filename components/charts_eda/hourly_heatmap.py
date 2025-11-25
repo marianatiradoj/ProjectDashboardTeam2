@@ -32,7 +32,7 @@ def render_hourly_heatmap(
       (por ejemplo, 0–10) sin dejar columnas en blanco.
     """
 
-    # 1) Aplicar filtros comunes (incluye hour_range)
+    # Aplicar filtros comunes
     df_f = apply_common_filters(
         df,
         hour_range=hour_range,
@@ -46,7 +46,7 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # 2) Agrupar por día y hora
+    # Agrupar por día y hora
     grp = (
         df_f.groupby([DIA_COL, HOUR_COL])
         .size()
@@ -57,7 +57,7 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # 3) Tabla dinámica: filas = día, columnas = hora
+    # Tabla dinámica: filas = día, columnas = hora
     pivot = grp.pivot(
         index=DIA_COL,
         columns=HOUR_COL,
@@ -68,7 +68,7 @@ def render_hourly_heatmap(
     ordered_days = [d for d in DAY_ORDER if d in pivot.index]
     pivot = pivot.loc[ordered_days]
 
-    # 4) Limitar columnas a las horas seleccionadas en el slider
+    # Limitar columnas a las horas seleccionadas en el slider
     if hour_range is not None:
         h0, h1 = hour_range
         # horas enteras dentro del rango
@@ -83,7 +83,7 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # 5) Construir figura
+    # Construir figura
     fig, ax = plt.subplots(figsize=(6.4, 3.6), dpi=150)
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax.set_facecolor(PALETTE["bg_axes"])
@@ -111,7 +111,7 @@ def render_hourly_heatmap(
         spine.set_color(PALETTE["grid"])
         spine.set_linewidth(0.6)
 
-    # 6) Barra de color
+    # Barra de color
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label("Número de delitos", fontsize=11, color=PALETTE["text"])
     cbar.ax.tick_params(labelsize=9, colors=PALETTE["text"])

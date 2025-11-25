@@ -5,23 +5,23 @@ from typing import Iterable, Optional, Tuple, List
 
 import pandas as pd
 
-# ----------------- COLUMNAS CLAVE -----------------
+# COLUMNAS CLAVE 
 HORA_COL = "hour_int"              # hora en entero 0–23
-RAW_HOUR_COL = "hora_hecho"        # texto original
+RAW_HOUR_COL = "hora_hecho"        
 
 # Aliases para compatibilidad con código viejo
-HOUR_COL = HORA_COL                # antes se usaba HOUR_COL
+HOUR_COL = HORA_COL                
 
-MONTH_COL = "mes_hecho"            # nombre del mes en español
-WEEKDAY_COL = "dia"                # LUNES, MARTES, ...
-ZONA_COL = "region_cdmx"           # Centro, Norte, Sur, ...
+MONTH_COL = "mes_hecho"            
+WEEKDAY_COL = "dia"               
+ZONA_COL = "region_cdmx"           
 DELITO_COL = "delito_grupo"
 DELITO_MACRO_COL = "delito_grupo_macro"
 
-# Alias para código antiguo que importaba DIA_COL
+
 DIA_COL = WEEKDAY_COL
 
-# Orden "bonito" de meses y días
+# Orden meses y días
 MONTH_ORDER: List[str] = [
     "ENERO",
     "FEBRERO",
@@ -47,11 +47,11 @@ WEEKDAY_ORDER: List[str] = [
     "DOMINGO",
 ]
 
-# ✅ Alias para compatibilidad con código viejo
+# Alias para compatibilidad con código viejo
 DAY_ORDER = WEEKDAY_ORDER
 
 
-# ----------------- PALETA (misma estética azul oscura) -----------------
+# PALETA
 PALETTE = {
     "bg_fig": "#020617",
     "bg_axes": "#020617",
@@ -63,15 +63,15 @@ PALETTE = {
     "bar_main": "#2563EB",
     "bar_dark": "#1D4ED8",
 
-    # Líneas (para la serie semanal)
-    "line": "#60A5FA",       # color principal de la línea
-    "line_alt": "#93C5FD",   # si luego quieres otra variante
+    # Líneas (serie semanal)
+    "line": "#60A5FA",       
+    "line_alt": "#93C5FD",   
 
-    # (si tienes más claves, déjalas igual)
+    
 }
 
 
-# ----------------- NORMALIZAR HORA -----------------
+# NORMALIZAR HORA 
 def normalize_hour_column(df: pd.DataFrame) -> pd.DataFrame:
     """
     Asegura que exista la columna HORA_COL (0–23) a partir de hora_hecho.
@@ -88,7 +88,7 @@ def normalize_hour_column(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ----------------- FILTROS COMUNES -----------------
+# FILTROS COMUNES 
 def apply_common_filters(
     df: pd.DataFrame,
     hour_range: Optional[Tuple[int, int]] = None,
@@ -106,7 +106,7 @@ def apply_common_filters(
     # Normalizar hora
     df_f = normalize_hour_column(df_f)
 
-    # --- Hora ---
+    # Hora
     if (
         hour_range is not None
         and HORA_COL in df_f.columns
@@ -115,19 +115,19 @@ def apply_common_filters(
         h0, h1 = hour_range
         df_f = df_f[(df_f[HORA_COL] >= h0) & (df_f[HORA_COL] <= h1)]
 
-    # --- Mes ---
+    # Mes
     if mes and mes != "Todos" and MONTH_COL in df_f.columns:
         df_f = df_f[df_f[MONTH_COL] == mes]
 
-    # --- Día de la semana ---
+    # Día de la semana
     if dia_semana and dia_semana != "Todos" and WEEKDAY_COL in df_f.columns:
         df_f = df_f[df_f[WEEKDAY_COL] == dia_semana]
 
-    # --- Zona / región CDMX ---
+    # Zona / región CDMX
     if zona and zona != "Todas" and ZONA_COL in df_f.columns:
         df_f = df_f[df_f[ZONA_COL] == zona]
 
-    # --- Tipo de crimen (macro) ---
+    # Tipo de crimen (macro)
     if tipos_crimen:
         tipos_crimen = list(tipos_crimen)
         if DELITO_MACRO_COL in df_f.columns:

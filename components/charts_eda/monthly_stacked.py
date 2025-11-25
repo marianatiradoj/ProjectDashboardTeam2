@@ -16,7 +16,7 @@ from .base import (
 )
 
 
-# 🔥 Mapeo robusto: cualquier variante → mes oficial
+# Mapeo robusto: cualquier variante --> mes oficial
 MONTH_MAP = {
     "enero": "ENERO",
     "febrero": "FEBRERO",
@@ -27,7 +27,7 @@ MONTH_MAP = {
     "julio": "JULIO",
     "agosto": "AGOSTO",
     "septiembre": "SEPTIEMBRE",
-    "setiembre": "SEPTIEMBRE",   # por si acaso
+    "setiembre": "SEPTIEMBRE",   
     "octubre": "OCTUBRE",
     "noviembre": "NOVIEMBRE",
     "diciembre": "DICIEMBRE",
@@ -73,7 +73,7 @@ def render_monthly_stacked_percent(
         st.info("Faltan columnas necesarias para la composición mensual.")
         return
 
-    # 🔥 Normalizar nombres de meses
+    # Normalizar nombres de meses
     df_f[MONTH_COL] = df_f[MONTH_COL].astype(str).apply(normalize_month)
 
     grp = (
@@ -91,7 +91,7 @@ def render_monthly_stacked_percent(
 
     pivot = grp.pivot(index=MONTH_COL, columns=DELITO_MACRO_COL, values="porcentaje").fillna(0)
 
-    # 🔥 ORDEN REAL
+    # ORDEN REAL
     ordered = [m for m in MONTH_ORDER if m in pivot.index]
     pivot = pivot.loc[ordered]
 

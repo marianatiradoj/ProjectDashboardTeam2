@@ -52,7 +52,7 @@ def render_top5_crimes_bar(
     counts["porcentaje"] = counts["conteo"] / total * 100
     st.caption(f"Registros tras filtros (Top 5): {total:,.0f}".replace(",", " "))
 
-    # -------- FIGURA --------
+    # FIGURA 
     counts = counts.sort_values("porcentaje", ascending=False)
 
     fig, ax = plt.subplots(figsize=(6, 3.4), dpi=150)

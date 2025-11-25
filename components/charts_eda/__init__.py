@@ -21,7 +21,7 @@ from .base import (
     apply_common_filters,
 )
 
-# ------------ CARGA DE DATOS (ruta que ya usas) ------------
+# CARGA DE DATOS
 DATA_PATH = Path(r"C:\Users\maria\Documents\ProjectDashboardTeam2\Database\FGJ_CLEAN_Final.csv")
 
 
@@ -32,8 +32,8 @@ def load_crime_data() -> pd.DataFrame:
     return df
 
 
-# ------------ EXPORTAR FUNCIONES DE GRÁFICA ------------
-from .top5_crimes import render_top5_crimes_bar          # noqa: E402,F401
-from .hourly_heatmap import render_hourly_heatmap        # noqa: E402,F401
-from .weekly_timeseries import render_weekly_timeseries  # noqa: E402,F401
-from .monthly_stacked import render_monthly_stacked_percent  # noqa: E402,F401
+# EXPORTAR FUNCIONES DE GRÁFICA
+from .top5_crimes import render_top5_crimes_bar          
+from .hourly_heatmap import render_hourly_heatmap        
+from .weekly_timeseries import render_weekly_timeseries  
+from .monthly_stacked import render_monthly_stacked_percent  
