@@ -1,0 +1,18 @@
+{
+  "tipo2id": {
+    "count_tipo_LETHAL_VIOLENT": 0,
+    "count_tipo_LOW_IMPACT": 1,
+    "count_tipo_NON_CRIME_OTHER": 2,
+    "count_tipo_ROBBERY_PERSON": 3,
+    "count_tipo_ROBBERY_PROPERTY": 4,
+    "count_tipo_VIOLENT_OTHER": 5
+  },
+  "id2tipo": {
+    "0": "count_tipo_LETHAL_VIOLENT",
+    "1": "count_tipo_LOW_IMPACT",
+    "2": "count_tipo_NON_CRIME_OTHER",
+    "3": "count_tipo_ROBBERY_PERSON",
+    "4": "count_tipo_ROBBERY_PROPERTY",
+    "5": "count_tipo_VIOLENT_OTHER"
+  }
+}
