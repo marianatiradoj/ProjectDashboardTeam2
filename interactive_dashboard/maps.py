@@ -1,18 +1,13 @@
 # interactive_dashboard/maps.py
 """
-Geospatial map engine for the interactive crime dashboard.
+Motor de mapa geoespacial para el dashboard interactivo.
 
-This module:
-- Loads the CDMX colonias GeoJSON.
-- Normalizes colonia names using a token-based rule.
-- Aggregates incident counts per logical colonia group using
-  the 'colonia_catalogo' column in the dataset and the 'NOMUT'
-  property in the GeoJSON.
-- Supports preset map views (CDMX general, Centro, Norte, Sur,
-  Oriente, Poniente, and an automatic view based on the current filters).
-- Draws a bounding rectangle showing the current view window.
-- Reports how many incidents are represented in the map vs. the
-  total incidents in the filtered dataframe.
+- Carga el GeoJSON de colonias CDMX.
+- Normaliza nombres de colonia con reglas de tokens.
+- Agrega conteos de incidentes por grupo lógico de colonia
+  usando 'colonia_catalogo' en el dataset y 'NOMUT' en el GeoJSON.
+- Soporta vistas predefinidas (CDMX general, zonas) y una vista
+  basada en los filtros actuales.
 """
 
 from __future__ import annotations
@@ -36,13 +31,11 @@ from folium.plugins import MousePosition
 BASE_DIR = Path(__file__).resolve().parent.parent
 COLONIAS_GEOJSON_PATH = BASE_DIR / "Geodata" / "colonias_iecm.geojson"
 
-# Name of the property that contains the alcaldía in the GeoJSON
+# GeoJSON property names
 GEOJSON_ALCALDIA_PROP = "NOMDT"
-
-# Name of the property that contains the colonia name in the GeoJSON
 GEOJSON_COLONIA_PROP = "NOMUT"
 
-# Regional views by alcaldía (used for center and highlight)
+# Regional views by alcaldía (used for centering and highlight)
 REGION_ALCALDIAS: Dict[str, List[str]] = {
     "Zona Centro": [
         "CUAUHTEMOC",
@@ -72,21 +65,13 @@ REGION_ALCALDIAS: Dict[str, List[str]] = {
     ],
 }
 
+
 # ---------------------------------------------------------------------
 # Normalization helpers
 # ---------------------------------------------------------------------
-
-
 def _key_norm_str(x: Any) -> str:
     """
-    Normalize a colonia name into a canonical key.
-
-    Steps:
-    - Convert to string.
-    - Remove accents.
-    - Replace non-alphanumeric characters with spaces.
-    - Uppercase.
-    - Collapse whitespace.
+    Normalize colonia name into a canonical key.
     """
     if not isinstance(x, str):
         x = "" if x is None else str(x)
@@ -101,12 +86,7 @@ def _key_norm_str(x: Any) -> str:
 
 def _tokens(s: Any) -> List[str]:
     """
-    Convert a colonia name into a list of significant tokens.
-
-    - Applies _key_norm_str.
-    - Splits by spaces.
-    - Expands common abbreviations (STA -> SANTA, SN -> SAN, STO -> SANTO).
-    - Removes structural words and Roman numerals.
+    Tokenize colonia name and drop structural tokens / Roman numerals.
     """
     STOP = {
         "COL",
@@ -175,12 +155,7 @@ def _tokens(s: Any) -> List[str]:
 
 def _group_key(s: Any) -> str:
     """
-    Build a group key from a colonia name.
-
-    The group key is a sorted, space-joined list of meaningful tokens.
-    Example:
-        "CENTRO", "CENTRO II", "CENTRO III"  -> "CENTRO"
-        "BARRIO SANTIAGO SUR", "SANTIAGO SUR (BARR)" -> "SANTIAGO SUR"
+    Build group key from colonia name (sorted tokens).
     """
     toks = _tokens(s)
     if not toks:
@@ -191,8 +166,6 @@ def _group_key(s: Any) -> str:
 # ---------------------------------------------------------------------
 # Load GeoJSON
 # ---------------------------------------------------------------------
-
-
 @st.cache_data(show_spinner=False)
 def _load_geojson() -> Dict[str, Any]:
     """Load colonia polygons from GeoJSON."""
@@ -203,18 +176,11 @@ def _load_geojson() -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 # Aggregation by logical colonia group
 # ---------------------------------------------------------------------
-
-
 def _build_colonia_counts(df_filtered: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate incident counts per logical colonia group.
 
-    Source column in dataset: 'colonia_catalogo'.
-
-    Returns:
-        DataFrame with columns:
-            - group_key
-            - incidentes
+    Uses 'colonia_catalogo' from the dataset.
     """
     if df_filtered is None or df_filtered.empty:
         return pd.DataFrame(columns=["group_key", "incidentes"])
@@ -239,11 +205,9 @@ def _attach_counts_to_geojson(
     colonia_counts: pd.DataFrame,
 ) -> Dict[str, Any]:
     """
-    Attach incident counts to each feature in the GeoJSON using the
-    token-based group key.
+    Add incident counts to each feature using the group key.
 
-    All polygons whose names share the same group key will receive
-    the same incident count (no distribution, only aggregation).
+    All polygons sharing the group key receive the same count.
     """
     features = geojson_data.get("features", [])
 
@@ -264,7 +228,7 @@ def _attach_counts_to_geojson(
         group_key = _group_key(raw_name)
         props["colonia_label"] = raw_name  # human label
         props["colonia_group"] = group_key  # logical group
-        props["colonia_norm"] = group_key  # key used by choropleth
+        props["colonia_norm"] = group_key  # key for choropleth
 
         props["incidentes"] = int(count_dict.get(group_key, 0))
 
@@ -274,13 +238,9 @@ def _attach_counts_to_geojson(
 # ---------------------------------------------------------------------
 # Bounding boxes and views
 # ---------------------------------------------------------------------
-
-
 def _iter_coords(geom: Dict[str, Any]):
     """
     Yield (lon, lat) pairs from a GeoJSON geometry.
-
-    Supports Polygon and MultiPolygon types.
     """
     gtype = geom.get("type")
     coords = geom.get("coordinates", [])
@@ -301,7 +261,7 @@ def _bbox_for_features(
     predicate: Optional[Callable[[Dict[str, Any]], bool]] = None,
 ) -> Optional[Tuple[float, float, float, float]]:
     """
-    Compute bounding box for a subset of features.
+    Compute bbox for a subset of features.
 
     Returns (min_lat, max_lat, min_lon, max_lon).
     """
@@ -339,12 +299,7 @@ def _view_feature_predicate(
     view_name: str,
 ) -> Optional[Callable[[Dict[str, Any]], bool]]:
     """
-    Return a predicate that identifies which features belong to the
-    selected view.
-
-    - For "Vista según filtros": colonias with incidentes > 0.
-    - For regional views: colonias whose alcaldía is in REGION_ALCALDIAS.
-    - For "CDMX general" or unknown: None (all features are considered).
+    Build predicate selecting features for current view.
     """
     if view_name == "Vista según filtros":
         return lambda f: f.get("properties", {}).get("incidentes", 0) > 0
@@ -360,7 +315,7 @@ def _view_feature_predicate(
 
         return _pred_region
 
-    # CDMX general or unknown → no special subset
+    # CDMX general or unknown → all features
     return None
 
 
@@ -369,12 +324,7 @@ def _compute_view_center(
     view_name: str,
 ) -> Tuple[List[float], int, Optional[Tuple[float, float, float, float]]]:
     """
-    Determine map center, zoom, and bbox for the selected view.
-
-    Views:
-    - "Vista según filtros": bbox over features with incidentes > 0.
-    - "CDMX general": bbox over all features.
-    - Regional views: bbox over features whose alcaldía is in REGION_ALCALDIAS.
+    Determine map center, zoom, and bbox for selected view.
     """
     default_bbox = _bbox_for_features(geojson_data, None)
     if default_bbox is None:
@@ -384,10 +334,8 @@ def _compute_view_center(
         default_center = _center_from_bbox(default_bbox)
         default_zoom = 11
 
-    # Predicate describing which features belong to this view
     pred = _view_feature_predicate(view_name)
 
-    # CDMX general (no predicate) → use all features
     if pred is None and view_name != "Vista según filtros":
         bbox = default_bbox
     else:
@@ -403,11 +351,9 @@ def _compute_view_center(
 # ---------------------------------------------------------------------
 # Choropleth data table
 # ---------------------------------------------------------------------
-
-
 def _extract_choropleth_table(geojson_data: Dict[str, Any]) -> pd.DataFrame:
     """
-    Build a small table [colonia_norm, incidentes] for Folium.Choropleth.
+    Build small table [colonia_norm, incidentes] for Choropleth.
     """
     rows = []
     for feature in geojson_data.get("features", []):
@@ -428,19 +374,12 @@ def _extract_choropleth_table(geojson_data: Dict[str, Any]) -> pd.DataFrame:
 # ---------------------------------------------------------------------
 # Folium map builder
 # ---------------------------------------------------------------------
-
-
 def _build_folium_map(
     geojson_data: Dict[str, Any],
     view_name: str,
 ) -> folium.Map:
     """
-    Build a Folium map for the given view.
-
-    - Center and zoom are derived from _compute_view_center.
-    - Choropleth uses colonia_norm as key.
-    - Colonias that belong to the selected view are highlighted with
-      a red border, following their exact polygon limits.
+    Build Folium map for current view.
     """
     center, zoom, _bbox = _compute_view_center(geojson_data, view_name)
 
@@ -478,7 +417,7 @@ def _build_folium_map(
         ),
     ).add_to(m)
 
-    # Highlight colonias belonging to the current view using a red border
+    # Highlight features belonging to view with a red border
     pred = _view_feature_predicate(view_name)
     if pred is not None:
         selected_features = [f for f in geojson_data.get("features", []) if pred(f)]
@@ -493,8 +432,8 @@ def _build_folium_map(
                 highlight_collection,
                 name="Zona seleccionada",
                 style_function=lambda feature: {
-                    "fillColor": "rgba(255, 0, 0, 0.0)",  # no fill, keep choropleth visible
-                    "color": "#FF3B30",  # red border
+                    "fillColor": "rgba(255, 0, 0, 0.0)",
+                    "color": "#FF3B30",
                     "weight": 3,
                     "fillOpacity": 0.0,
                 },
@@ -506,16 +445,9 @@ def _build_folium_map(
 # ---------------------------------------------------------------------
 # Public entrypoint for pagina5
 # ---------------------------------------------------------------------
-
-
 def render_map_section(df_filtered: pd.DataFrame) -> None:
     """
-    High-level wrapper used in pagina5.
-
-    - Respects all filters (df_filtered is already filtered).
-    - Allows the user to select a map view.
-    - Shows a KPI of incidents represented vs total filtered.
-    - Renders the Folium map inside Streamlit.
+    High-level wrapper for pagina5: applies filters and renders map.
     """
     st.subheader("Mapa interactivo de incidencia por colonia")
 

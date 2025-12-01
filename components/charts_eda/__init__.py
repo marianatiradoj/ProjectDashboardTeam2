@@ -1,10 +1,10 @@
 # components/charts_eda/__init__.py
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
+
+from config import DATA_PATH  # unified dataset path
 
 from .base import (
     HORA_COL,
@@ -21,10 +21,8 @@ from .base import (
     apply_common_filters,
 )
 
-# CARGA DE DATOS
-DATA_PATH = Path(r"C:\Users\maria\Documents\ProjectDashboardTeam2\Database\FGJ_CLEAN_Final.csv")
 
-
+# Cached loader for charts that need direct data access
 @st.cache_data(show_spinner=False)
 def load_crime_data() -> pd.DataFrame:
     df = pd.read_csv(DATA_PATH, low_memory=False)
@@ -32,8 +30,8 @@ def load_crime_data() -> pd.DataFrame:
     return df
 
 
-# EXPORTAR FUNCIONES DE GRÁFICA
-from .top5_crimes import render_top5_crimes_bar          
-from .hourly_heatmap import render_hourly_heatmap        
-from .weekly_timeseries import render_weekly_timeseries  
-from .monthly_stacked import render_monthly_stacked_percent  
+# Export chart render functions
+from .top5_crimes import render_top5_crimes_bar
+from .hourly_heatmap import render_hourly_heatmap
+from .weekly_timeseries import render_weekly_timeseries
+from .monthly_stacked import render_monthly_stacked_percent

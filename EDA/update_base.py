@@ -1,25 +1,19 @@
-# update_base.py
-# Utilidades generales para el EDA (IO, fechas, clima, regiones, etc.)
+# EDA/update_base.py
+# General utilities for the EDA pipeline (IO, dates, weather, regions, etc.)
 
 import re
 import unicodedata
 from typing import Dict, Tuple
 
-import numpy as np
 import pandas as pd
 
 
-# ------------------------------------------------------------
-# IO & diagnósticos
-# ------------------------------------------------------------
-
-
+# IO and diagnostics
 def robust_read_csv(
     path: str, try_encodings=("utf-8", "latin-1", "cp1252"), **kwargs
 ) -> pd.DataFrame:
     """
-    Lee un CSV probando varios encodings comunes.
-    Lanza un error claro si ninguno funciona.
+    Read a CSV trying multiple encodings and raise a clear error if all fail.
     """
     last_err = None
     if "encoding" in kwargs:
@@ -36,7 +30,7 @@ def robust_read_csv(
 
 def report_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Tabla con NA absolutos y porcentaje, ordenada desc.
+    Return absolute and percentage missing values per column, sorted descending.
     """
     counts = df.isna().sum().astype(int)
     pct = (counts / len(df) * 100) if len(df) else 0.0
@@ -47,17 +41,14 @@ def report_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
 def report_duplicates_full(df: pd.DataFrame) -> Dict[str, int]:
     """
-    Cuenta duplicados exactos en todas las columnas.
+    Count exact duplicate rows across all columns.
     """
     return {"duplicate_rows_full": int(df.duplicated(keep=False).sum())}
 
 
-# ------------------------------------------------------------
-# Normalización de texto
-# ------------------------------------------------------------
-
-
+# Text normalization
 def _strip_accents(s: str) -> str:
+    """Remove accents from a string."""
     return "".join(
         ch
         for ch in unicodedata.normalize("NFD", str(s))
@@ -67,22 +58,17 @@ def _strip_accents(s: str) -> str:
 
 def norm_series(s: pd.Series) -> pd.Series:
     """
-    Mayúsculas, recorte, colapso de espacios, sin acentos; devuelve dtype 'string'.
+    Normalize text to uppercase, trim spaces, collapse whitespace and remove accents.
     """
     s = s.astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
     s = s.map(_strip_accents).str.upper()
     return s.astype("string")
 
 
-# ------------------------------------------------------------
-# Cross-fill colonias (mapeo estricto 1→1)
-# ------------------------------------------------------------
-
-
+# Cross-fill colonias (strict 1→1 mapping)
 def _strict_map(df: pd.DataFrame, src: str, tgt: str) -> Tuple[Dict[str, str], int]:
     """
-    Construye mapa src→tgt SOLO para fuentes que mapean a exactamente un único destino.
-    Regresa (mapping, conteo_de_fuentes_ambiguas).
+    Build a src→tgt map only for sources that map to exactly one target.
     """
     sub = df[[src, tgt]].dropna().copy()
     if sub.empty:
@@ -108,7 +94,7 @@ def cross_fill_colonias(
     cat_col: str = "colonia_catalogo",
 ) -> Tuple[pd.DataFrame, dict]:
     """
-    Rellena catálogo desde hecho y hecho desde catálogo SOLO cuando el mapeo es 1→1 estricto.
+    Cross-fill catalog and incident colonias when the mapping is strictly 1→1.
     """
     out = df.copy()
     if (hecho_col not in out.columns) or (cat_col not in out.columns):
@@ -140,17 +126,10 @@ def cross_fill_colonias(
     return out, stats
 
 
-# ------------------------------------------------------------
-# Imputación: competencia
-# ------------------------------------------------------------
-
-
+# Imputation: competencia
 def fill_competencia(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     """
-    Compleción conservadora de 'competencia':
-      1) Reglas por tokens en contexto institucional,
-      2) moda por 'alcaldia_hecho',
-      3) residuales a 'DESCONOCIDO'.
+    Fill 'competencia' using token rules, mode by borough and a DESCONOCIDO fallback.
     """
     out = df.copy()
 
@@ -173,7 +152,7 @@ def fill_competencia(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         r"(?:\bFGJ\b|\bPGJ\b|\bCDMX\b|\bLOCAL\b|FUERO COMUN|JUSTICIA)"
     )
 
-    # Reglas por tokens
+    # Token-based rules
     m_fed = out["competencia"].isna() & contexto.str.contains(federal_pat, na=False)
     out.loc[m_fed, "competencia"] = "FEDERAL"
 
@@ -182,7 +161,7 @@ def fill_competencia(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     before_na = int(out["competencia"].isna().sum())
 
-    # Moda por alcaldía
+    # Mode by alcaldía
     if "alcaldia_hecho" in out.columns:
         modes = out.groupby("alcaldia_hecho", dropna=False)["competencia"].agg(
             lambda s: (
@@ -193,7 +172,7 @@ def fill_competencia(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     after_mode_na = int(out["competencia"].isna().sum())
 
-    # Residuales a DESCONOCIDO
+    # Remaining values to DESCONOCIDO
     m_unk = out["competencia"].isna()
     out.loc[m_unk, "competencia"] = "DESCONOCIDO"
 
@@ -206,15 +185,10 @@ def fill_competencia(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     return out, stats
 
 
-# ------------------------------------------------------------
-# Imputación: coordenadas
-# ------------------------------------------------------------
-
-
+# Imputation: coordinates
 def fill_latlng_medians(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     """
-    Imputa 'latitud' y 'longitud' usando medianas a nivel 'colonia_hecho';
-    recurre a medianas por 'alcaldia_hecho' cuando no hay mediana de colonia.
+    Impute 'latitud' and 'longitud' with medians by neighborhood and borough.
     """
     out = df.copy()
     rep = {
@@ -227,7 +201,7 @@ def fill_latlng_medians(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     if not all(c in out.columns for c in ["latitud", "longitud"]):
         return out, rep
 
-    # Nivel colonia
+    # Neighborhood level
     if "colonia_hecho" in out.columns:
         med = out.groupby("colonia_hecho")[["latitud", "longitud"]].median(
             numeric_only=True
@@ -240,7 +214,7 @@ def fill_latlng_medians(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         out.loc[m1, "latitud"] = out.loc[m1, "colonia_hecho"].map(med["latitud"])
         out.loc[m2, "longitud"] = out.loc[m2, "colonia_hecho"].map(med["longitud"])
 
-    # Nivel alcaldía
+    # Borough level
     if "alcaldia_hecho" in out.columns:
         med2 = out.groupby("alcaldia_hecho")[["latitud", "longitud"]].median(
             numeric_only=True
@@ -258,15 +232,10 @@ def fill_latlng_medians(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     return out, rep
 
 
-# ------------------------------------------------------------
-# Drop de columnas muy escasas
-# ------------------------------------------------------------
-
-
+# Drop sparse columns
 def preview_drop_sparse(df: pd.DataFrame, col: str, threshold: float = 0.95):
     """
-    Previsualiza el efecto de eliminar `col` si % de NA ≥ threshold.
-    No muta el dataframe original.
+    Preview effect of dropping a column if NA share is above a threshold.
     """
     if col not in df.columns:
         return df, {"se_eliminaria": 0, "razon": "no_presente"}
@@ -280,14 +249,10 @@ def preview_drop_sparse(df: pd.DataFrame, col: str, threshold: float = 0.95):
     return df, {"se_eliminaria": 0, "porcentaje_na": miss_pct}
 
 
-# ------------------------------------------------------------
-# Manejo de fechas y features calendario
-# ------------------------------------------------------------
-
-
+# Date handling and calendar features
 def _parse_date_flex(s: pd.Series) -> pd.Series:
     """
-    Parse robusto: intenta ISO estricto (YYYY-MM-DD); si no, dayfirst=True.
+    Parse dates trying strict ISO first and then a flexible day-first parser.
     """
     txt = s.astype("string")
     is_iso = txt.str.match(r"^\d{4}-\d{2}-\d{2}$", na=False)
@@ -303,7 +268,7 @@ def add_weekday_features(
     num_col: str = "dia_semana_num",
 ) -> pd.DataFrame:
     """
-    Deriva número de día (Lun=1..Dom=7) y nombre de día en español desde `date_col`.
+    Add weekday number (Mon=1..Sun=7) and weekday name in Spanish.
     """
     out = df.copy()
     dt = _parse_date_flex(out[date_col])
@@ -331,8 +296,7 @@ def add_quincena_window(
     out_label: str = "No_ventana",
 ) -> pd.DataFrame:
     """
-    Marca fechas dentro de ±window_days de:
-      15 del mes, fin de mes actual, o fin de mes anterior.
+    Flag dates within ±window_days of mid-month and month-end reference dates.
     """
     out = df.copy()
     dt = _parse_date_flex(out[date_col])
@@ -359,11 +323,7 @@ def add_quincena_window(
     return out
 
 
-# ------------------------------------------------------------
-# Enriquecimiento con clima
-# ------------------------------------------------------------
-
-
+# Weather enrichment
 def add_weather_by_alcaldia_fecha(
     df: pd.DataFrame,
     clima_csv_path: str,
@@ -373,8 +333,7 @@ def add_weather_by_alcaldia_fecha(
     out_cond: str = "clima_condicion",
 ) -> Tuple[pd.DataFrame, dict]:
     """
-    LEFT join de clima diario (temp, condición) por alcaldía normalizada + fecha (YYYY-MM-DD)
-    sobre el dataset de delitos.
+    Join daily weather by normalized borough and date (YYYY-MM-DD).
     """
     out = df.copy()
 
@@ -417,10 +376,7 @@ def add_weather_by_alcaldia_fecha(
     return out, stats
 
 
-# ------------------------------------------------------------
-# Regiones CDMX
-# ------------------------------------------------------------
-
+# CDMX regions
 REGIONES_CDMX = {
     "Centro": [
         "Cuauhtémoc",
@@ -454,6 +410,7 @@ REGIONES_CDMX = {
 
 
 def _norm_simple(s):
+    """Simple lowercase + accent stripping for borough names."""
     if pd.isna(s):
         return None
     s = str(s).strip().lower()
@@ -474,7 +431,7 @@ REGIONES_NORM = {
 
 def asignar_region(alcaldia: str) -> str:
     """
-    Devuelve región CDMX (Centro, Norte, Sur, Oriente, Poniente) o 'Desconocido'.
+    Return CDMX region (Centro, Norte, Sur, Oriente, Poniente) or 'Desconocido'.
     """
     alc_norm = _norm_simple(alcaldia)
     if alc_norm is None:
@@ -485,10 +442,7 @@ def asignar_region(alcaldia: str) -> str:
     return "Desconocido"
 
 
-# ------------------------------------------------------------
-# Meses en español
-# ------------------------------------------------------------
-
+# Month names in Spanish
 MESES_ENG_TO_ES = {
     "january": "Enero",
     "february": "Febrero",
@@ -521,6 +475,7 @@ _MESES_ES = {
 
 
 def mes_a_espanol(s):
+    """Normalize month label to Spanish name or return 'Desconocido'."""
     if pd.isna(s):
         return None
     s_norm = str(s).strip().lower()
@@ -541,23 +496,19 @@ def mes_a_espanol(s):
     return "Desconocido"
 
 
-# ------------------------------------------------------------
-# Clasificar hora en mañana / tarde / noche
-# ------------------------------------------------------------
-
-
+# Time-of-day classification
 def clasificar_hora(h) -> str:
     """
-    Devuelve Mañana / Tarde / Noche según hora (objeto datetime.time).
+    Classify time into Mañana / Tarde / Noche.
     """
     if pd.isna(h):
         return None
 
     minutos = h.hour * 60 + h.minute
 
-    if 5 * 60 <= minutos < 12 * 60:  # 05:00 - 11:59
+    if 5 * 60 <= minutos < 12 * 60:
         return "Mañana"
-    elif 12 * 60 <= minutos < 19 * 60:  # 12:00 - 18:59
+    elif 12 * 60 <= minutos < 19 * 60:
         return "Tarde"
-    else:  # 19:00 - 04:59
+    else:
         return "Noche"

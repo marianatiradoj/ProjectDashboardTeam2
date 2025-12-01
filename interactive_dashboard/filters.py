@@ -1,5 +1,4 @@
 # interactive_dashboard/filters.py
-
 from __future__ import annotations
 
 from typing import Tuple, Dict, Any, List
@@ -8,8 +7,7 @@ import pandas as pd
 import streamlit as st
 
 
-# Mapping used only for display purposes in the UI.
-# Internal dataframe column names remain unchanged.
+# UI display names (internal column names remain unchanged)
 DISPLAY_NAMES: Dict[str, str] = {
     "fecha_hecho": "Fecha del hecho",
     "anio_hecho": "Año del hecho",
@@ -29,7 +27,7 @@ DISPLAY_NAMES: Dict[str, str] = {
 }
 
 
-# Reference orders for months and weekdays in Spanish.
+# Reference orders for months and weekdays in Spanish
 _MONTH_ORDER = [
     "ENERO",
     "FEBRERO",
@@ -59,7 +57,7 @@ _DAY_ORDER = [
 
 
 def _ensure_datetime_fecha_hecho(df: pd.DataFrame) -> pd.DataFrame:
-    """Ensure that 'fecha_hecho' is parsed as datetime."""
+    """Ensure 'fecha_hecho' is parsed as datetime."""
     if "fecha_hecho" not in df.columns:
         return df
     if pd.api.types.is_datetime64_any_dtype(df["fecha_hecho"]):
@@ -70,7 +68,7 @@ def _ensure_datetime_fecha_hecho(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _sorted_unique(df: pd.DataFrame, column: str) -> List[Any]:
-    """Return sorted unique non-null values."""
+    """Return sorted unique non-null values from a column."""
     if column not in df.columns:
         return []
     return sorted(df[column].dropna().unique().tolist())
@@ -105,22 +103,22 @@ def _sorted_days(df: pd.DataFrame, column: str = "dia") -> List[Any]:
 
 
 def _prettify(t: Any) -> str:
-    """Replace underscores and apply title formatting."""
+    """Replace underscores and apply title-style formatting."""
     if t is None:
         return ""
     return str(t).replace("_", " ").title()
 
 
 def _format_choice(v: Any) -> str:
-    """Format for selectboxes, keeping 'Totalidad' literal."""
+    """Format selectbox values, keeping 'Totalidad' literal."""
     if v == "Totalidad":
         return "Totalidad"
     return _prettify(v)
 
 
-# =======================================================================
+# ======================================================================
 # MAIN FILTER SYSTEM
-# =======================================================================
+# ======================================================================
 
 
 def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
@@ -131,12 +129,17 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     Crime filters (macro and micro) define the thematic scope.
     Remaining filters (alcaldía, región, periodo, violencia, clima, quincena)
     are computed hierarchically based on the selected temporal and crime scope.
+
+    Returns:
+        df_final: filtered dataframe ready for charts.
+        selections: dictionary with all current filter values, including
+                    'delito_grupo_macro' (macro crime type) that charts can use.
     """
     df_prepared = _ensure_datetime_fecha_hecho(df)
     df_work = df_prepared.copy()
 
     # ---------------------------------------------------------------
-    # 0. Build mapping group → macro for logical synchronization
+    # 0. Build mapping group → macro (used for filter synchronization)
     # ---------------------------------------------------------------
     macro_by_group: Dict[Any, Any] = {}
     if {"delito_grupo", "delito_grupo_macro"}.issubset(df_work.columns):
@@ -153,6 +156,7 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     macro_key = "filter_macro_delito_value"
     grupo_key = "filter_grupo_delito_value"
 
+    # Default to full scope when opening the dashboard
     if macro_key not in st.session_state:
         st.session_state[macro_key] = "Totalidad"
     if grupo_key not in st.session_state:
@@ -166,7 +170,7 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     # 2. Time filters (year, month, weekday) and temporal scope
     # ==================================================================
 
-    # Ensure a temporary year column and limit to 2016+
+    # Compute temporary year column and limit to >= 2016
     year_range = None
     df_work["anio_tmp"] = (
         df_work["fecha_hecho"].dt.year if "fecha_hecho" in df_work.columns else None
@@ -174,13 +178,13 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
 
     if "anio_tmp" in df_work.columns:
         df_work = df_work[df_work["anio_tmp"] >= 2016]
-
         year_opts = (
             df_work["anio_tmp"].dropna().astype(int).sort_values().unique().tolist()
         )
     else:
         year_opts = []
 
+    # Año del hecho
     if year_opts:
         year_range = st.sidebar.select_slider(
             "Año del hecho",
@@ -189,7 +193,7 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         )
         selections["anio_hecho"] = year_range
 
-    # Month options from current temporal dataset (2016+)
+    # Mes del hecho
     month_opts = _sorted_months(df_work, "mes_hecho")
     month_range = None
     if month_opts:
@@ -200,7 +204,7 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         )
         selections["mes_hecho"] = month_range
 
-    # Weekday options from current temporal dataset (2016+)
+    # Día de la semana
     day_opts = _sorted_days(df_work, "dia")
     day_range = None
     if day_opts:
@@ -241,24 +245,21 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     # 3. Crime filters (macro and micro) with callbacks
     # ==================================================================
 
-    # Crime lists are now based on temporal scope (hierarchy by time)
+    # Crime lists are based on temporal scope for consistency
     macro_list = _sorted_unique(df_time_scope, "delito_grupo_macro")
     grupo_all = _sorted_unique(df_time_scope, "delito_grupo")
 
-    def _on_macro_change():
-        """
-        When macro changes:
-        - If macro is 'Totalidad', reset micro filter to 'Totalidad'.
-        """
+    def _on_macro_change() -> None:
+        """When macro changes, reset micro filter if scope goes back to 'Totalidad'."""
         if st.session_state[macro_key] == "Totalidad":
             st.session_state[grupo_key] = "Totalidad"
 
-    def _on_grupo_change():
+    def _on_grupo_change() -> None:
         """
-        When group changes:
+        When micro group changes:
         - If a specific group is chosen and macro is 'Totalidad',
           infer macro from the mapping.
-        - If group is 'Totalidad', do not modify macro.
+        - If group is 'Totalidad', macro remains unchanged.
         """
         grupo_val = st.session_state[grupo_key]
         macro_val = st.session_state[macro_key]
@@ -267,9 +268,7 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
             if macro_val == "Totalidad":
                 st.session_state[macro_key] = macro_by_group[grupo_val]
 
-    # ------------------------
-    # Macro delito picklist
-    # ------------------------
+    # Macro delito selector
     macro_choices = ["Totalidad"] + macro_list
     if st.session_state[macro_key] not in macro_choices:
         st.session_state[macro_key] = "Totalidad"
@@ -281,12 +280,10 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         format_func=_format_choice,
         on_change=_on_macro_change,
     )
+    # This key is used later by charts to adapt distribution by macrogrupo
     selections["delito_grupo_macro"] = macro_value
 
-    # ------------------------
-    # Micro delito picklist
-    # ------------------------
-    # Limit groups to temporal scope and macro selection
+    # Micro delito selector (grupo)
     macro_value = st.session_state[macro_key]
     if macro_value == "Totalidad":
         grupo_opts = grupo_all

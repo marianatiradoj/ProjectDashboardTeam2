@@ -1,6 +1,5 @@
-# regex_loader.py
-# Carga patrones desde regex_config.jam y aplica clasificación.
-# Aquí NO hay patrones quemados: solo funciones + diccionarios de lógica.
+# EDA/regex_loader.py
+# Load patterns from regex_config.jam and apply classification logic.
 
 import re
 from typing import Tuple, Dict, Optional
@@ -10,17 +9,9 @@ import pandas as pd
 from .update_base import norm_series
 
 
-# ------------------------------------------------------------
-# Carga de patrones desde .jam
-# ------------------------------------------------------------
-
-
 def load_regex_config(path: str) -> Dict[str, re.Pattern]:
     """
-    Lee regex_config.jam.
-    Formato de cada línea:
-        NOMBRE = patron_regex
-    Líneas vacías o con # al inicio se ignoran.
+    Load regex patterns from regex_config.jam as compiled expressions.
     """
     patterns: Dict[str, re.Pattern] = {}
 
@@ -47,10 +38,7 @@ def load_regex_config(path: str) -> Dict[str, re.Pattern]:
     return patterns
 
 
-# ------------------------------------------------------------
-# Orden de evaluación y lógica de grupos (no es regex)
-# ------------------------------------------------------------
-
+# Group evaluation order and mappings (non-regex logic)
 GROUP_ORDER = [
     "FEMINICIDIO",
     "HOMICIDIO",
@@ -87,11 +75,11 @@ ALIAS = {
 }
 
 GROUP_TO_MACRO = {
-    # 1) Violencia letal
+    # Lethal violence
     "HOMICIDIO": "VIOLENCIA_LETAL",
     "FEMINICIDIO": "VIOLENCIA_LETAL",
     "PERDIDA_VIDA_SUICIDIO": "VIOLENCIA_LETAL",
-    # 2) Violencia no letal
+    # Non-lethal violence
     "SECUESTRO": "VIOLENCIA_NO_LETAL",
     "DELITO_SEXUAL": "VIOLENCIA_NO_LETAL",
     "LESIONES_ARMA": "VIOLENCIA_NO_LETAL",
@@ -99,23 +87,23 @@ GROUP_TO_MACRO = {
     "VIOLENCIA_FAMILIAR": "VIOLENCIA_NO_LETAL",
     "LESIONES_INTENCIONALES": "VIOLENCIA_NO_LETAL",
     "MALTRATO_ANIMAL": "VIOLENCIA_NO_LETAL",
-    # 3) Robos a persona
+    # Robbery against persons
     "ROBO_TRANSEUNTE": "ROBO_PERSONA",
     "ROBO_PASAJERO": "ROBO_PERSONA",
     "ROBO_CUENTAHABIENTE": "ROBO_PERSONA",
     "ROBO_OBJETOS": "ROBO_PERSONA",
     "ROBO_TRANSEUNTE_PRIORITARIO": "ROBO_PERSONA",
-    # 4) Robos a propiedad / vehículo / reparto
+    # Robbery of property / vehicles / delivery
     "ROBO_CASA": "ROBO_PROPIEDAD",
     "ROBO_NEGOCIO": "ROBO_PROPIEDAD",
     "ROBO_VEHICULO": "ROBO_PROPIEDAD",
     "ROBO_REPARTIDOR": "ROBO_PROPIEDAD",
-    # 5) Macrogrupo ADMINISTRATIVO
+    # Administrative macrogroup
     "SIN_DELITO": "ADMINISTRATIVO",
     "DELITO_BAJO_IMPACTO": "ADMINISTRATIVO",
     "DELITO_ADMINISTRATIVO": "ADMINISTRATIVO",
     "FALSIFICACION_DOCUMENTO": "ADMINISTRATIVO",
-    # 6) Bajo impacto / otros
+    # Low-impact / other
     "NARCOMENUDEO_POSESION": "BAJO_IMPACTO",
     "FRAUDE_ABUSO_CONFIANZA": "BAJO_IMPACTO",
     "DESPOJO_VIA_PUBLICA": "BAJO_IMPACTO",
@@ -151,14 +139,9 @@ MAP_VIOLENCIA = {
 }
 
 
-# ------------------------------------------------------------
-# Helpers internos
-# ------------------------------------------------------------
-
-
 def _group_from_text(t: pd.Series, rgx: Dict[str, re.Pattern]) -> pd.Series:
     """
-    Aplica precedencia de primer match usando GROUP_ORDER; por defecto OTRO.
+    Assign crime group using first match in GROUP_ORDER, default OTRO.
     """
     out = pd.Series(pd.NA, index=t.index, dtype="string")
     for key in GROUP_ORDER:
@@ -170,11 +153,6 @@ def _group_from_text(t: pd.Series, rgx: Dict[str, re.Pattern]) -> pd.Series:
     return out
 
 
-# ------------------------------------------------------------
-# Función principal que se usa desde el pipeline
-# ------------------------------------------------------------
-
-
 def classify_regex(
     df: pd.DataFrame,
     delito_col: str = "delito",
@@ -184,19 +162,14 @@ def classify_regex(
     regex_config_path: Optional[str] = "regex_config.jam",
 ) -> Tuple[pd.DataFrame, dict]:
     """
-    Usa patrones de regex_config.jam para estandarizar delitos:
-      - 'delito_grupo'
-      - 'delito_grupo_macro'
-      - 'clase_violencia'
-      - 'robo_pasajero' (0/1)
+    Use regex_config.jam patterns to standardize crime-related columns.
     """
-
     if regex_config_path is None:
         raise ValueError("Debes indicar la ruta de regex_config.jam")
 
     rgx = load_regex_config(regex_config_path)
 
-    # Aseguramos que los grupos clave existan
+    # Ensure all required groups have patterns
     missing_keys = [k for k in GROUP_ORDER if k not in rgx]
     if missing_keys:
         raise KeyError(f"Faltan patrones en regex_config.jam para: {missing_keys}")
@@ -211,10 +184,8 @@ def classify_regex(
 
     grp = _group_from_text(t, rgx)
 
-    # Forzar algunos OTRO a grupos más informativos usando contexto
-    # Para vehículo usamos el mismo patrón de ROBO_VEHICULO
+    # Reassign some OTRO cases using additional context for vehicles and objects
     veh_pat = rgx.get("ROBO_VEHICULO", re.compile(""))
-
     grp.loc[(grp.isna() | (grp == "OTRO")) & t.str.contains(veh_pat, na=False)] = (
         "ROBO_VEHICULO"
     )

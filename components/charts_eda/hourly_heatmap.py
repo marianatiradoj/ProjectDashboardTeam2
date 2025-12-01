@@ -25,14 +25,9 @@ def render_hourly_heatmap(
     tipos_crimen: Optional[Iterable[str]],
 ) -> None:
     """
-    Heatmap Día de la semana vs Hora del día.
-
-    - Filtra por rango horario, mes, día específico, zona y tipo de crimen.
-    - El eje X SOLO muestra las horas dentro del rango seleccionado
-      (por ejemplo, 0–10) sin dejar columnas en blanco.
+    Render weekday vs hour heatmap with global filters.
     """
-
-    # Aplicar filtros comunes
+    # Apply common filters
     df_f = apply_common_filters(
         df,
         hour_range=hour_range,
@@ -46,36 +41,30 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # Agrupar por día y hora
-    grp = (
-        df_f.groupby([DIA_COL, HOUR_COL])
-        .size()
-        .reset_index(name="conteo")
-    )
+    # Group by weekday and hour
+    grp = df_f.groupby([DIA_COL, HOUR_COL]).size().reset_index(name="conteo")
 
     if grp.empty:
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # Tabla dinámica: filas = día, columnas = hora
+    # Pivot table: rows = weekday, columns = hour
     pivot = grp.pivot(
         index=DIA_COL,
         columns=HOUR_COL,
         values="conteo",
     ).fillna(0)
 
-    # Ordenar días de la semana
+    # Order weekdays
     ordered_days = [d for d in DAY_ORDER if d in pivot.index]
     pivot = pivot.loc[ordered_days]
 
-    # Limitar columnas a las horas seleccionadas en el slider
+    # Limit columns to selected hour range
     if hour_range is not None:
         h0, h1 = hour_range
-        # horas enteras dentro del rango
         cols = [h for h in range(h0, h1 + 1)]
         pivot = pivot.reindex(columns=cols, fill_value=0)
     else:
-        # si no hay rango, usamos todas las horas presentes
         cols = sorted(pivot.columns)
         pivot = pivot[cols]
 
@@ -83,7 +72,7 @@ def render_hourly_heatmap(
         st.info("No hay datos para los filtros seleccionados (heatmap).")
         return
 
-    # Construir figura
+    # Build figure
     fig, ax = plt.subplots(figsize=(6.4, 3.6), dpi=150)
     fig.patch.set_facecolor(PALETTE["bg_fig"])
     ax.set_facecolor(PALETTE["bg_axes"])
@@ -97,7 +86,14 @@ def render_hourly_heatmap(
         origin="upper",
     )
 
-    # Ejes
+    # Title and axes
+    ax.set_title(
+        "Mapa de Calor Horario – Delitos por día y hora",
+        fontsize=13,
+        color=PALETTE["text"],
+        pad=10,
+    )
+
     ax.set_yticks(range(len(pivot.index)))
     ax.set_yticklabels(pivot.index, fontsize=11, color=PALETTE["text"])
 
@@ -111,7 +107,7 @@ def render_hourly_heatmap(
         spine.set_color(PALETTE["grid"])
         spine.set_linewidth(0.6)
 
-    # Barra de color
+    # Colorbar
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label("Número de delitos", fontsize=11, color=PALETTE["text"])
     cbar.ax.tick_params(labelsize=9, colors=PALETTE["text"])

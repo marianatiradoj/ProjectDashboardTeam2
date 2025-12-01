@@ -15,8 +15,7 @@ from .base import (
     apply_common_filters,
 )
 
-
-# Mapeo robusto: cualquier variante --> mes oficial
+# Robust mapping: any month variant -> standard name
 MONTH_MAP = {
     "enero": "ENERO",
     "febrero": "FEBRERO",
@@ -27,7 +26,7 @@ MONTH_MAP = {
     "julio": "JULIO",
     "agosto": "AGOSTO",
     "septiembre": "SEPTIEMBRE",
-    "setiembre": "SEPTIEMBRE",   
+    "setiembre": "SEPTIEMBRE",
     "octubre": "OCTUBRE",
     "noviembre": "NOVIEMBRE",
     "diciembre": "DICIEMBRE",
@@ -37,15 +36,15 @@ MONTH_ORDER = list(MONTH_MAP.values())
 
 
 def normalize_month(m: str) -> str:
-    """Convierte texto de mes en forma estándar ENERO–DICIEMBRE."""
+    """Normalize month text into ENERO–DICIEMBRE."""
     if not isinstance(m, str):
         return m
 
-    # quitar acentos y lowercase
+    # Remove accents and lowercase
     m_clean = unicodedata.normalize("NFKD", m).encode("ascii", "ignore").decode("utf-8")
     m_clean = m_clean.lower().strip()
 
-    return MONTH_MAP.get(m_clean, m)  # si no coincide, lo deja igual
+    return MONTH_MAP.get(m_clean, m)
 
 
 def render_monthly_stacked_percent(
@@ -55,7 +54,9 @@ def render_monthly_stacked_percent(
     zona: Optional[str],
     tipos_crimen: Optional[Iterable[str]],
 ) -> None:
-
+    """
+    Render monthly stacked bar chart with percentage composition by crime group.
+    """
     df_f = apply_common_filters(
         df,
         hour_range=hour_range,
@@ -66,32 +67,32 @@ def render_monthly_stacked_percent(
     )
 
     if df_f.empty:
-        st.info("No hay datos para los filtros seleccionados (barras apiladas mensuales).")
+        st.info("No hay datos para los filtros seleccionados (composición mensual).")
         return
 
     if MONTH_COL not in df_f.columns or DELITO_MACRO_COL not in df_f.columns:
         st.info("Faltan columnas necesarias para la composición mensual.")
         return
 
-    # Normalizar nombres de meses
+    # Normalize month names
     df_f[MONTH_COL] = df_f[MONTH_COL].astype(str).apply(normalize_month)
 
-    grp = (
-        df_f.groupby([MONTH_COL, DELITO_MACRO_COL])
-        .size()
-        .reset_index(name="conteo")
-    )
+    grp = df_f.groupby([MONTH_COL, DELITO_MACRO_COL]).size().reset_index(name="conteo")
 
     if grp.empty:
-        st.info("No hay datos para los filtros seleccionados (barras apiladas mensuales).")
+        st.info("No hay datos para los filtros seleccionados (composición mensual).")
         return
 
     grp["total_mes"] = grp.groupby(MONTH_COL)["conteo"].transform("sum")
     grp["porcentaje"] = grp["conteo"] / grp["total_mes"] * 100
 
-    pivot = grp.pivot(index=MONTH_COL, columns=DELITO_MACRO_COL, values="porcentaje").fillna(0)
+    pivot = grp.pivot(
+        index=MONTH_COL,
+        columns=DELITO_MACRO_COL,
+        values="porcentaje",
+    ).fillna(0)
 
-    # ORDEN REAL
+    # Enforce month order for plotting
     ordered = [m for m in MONTH_ORDER if m in pivot.index]
     pivot = pivot.loc[ordered]
 
@@ -125,10 +126,20 @@ def render_monthly_stacked_percent(
         bottom += vals
 
     ax.set_ylim(0, 100)
-    ax.set_ylabel("Porcentaje dentro de cada mes (%)", fontsize=20, color=PALETTE["text"])
+
+    ax.set_title(
+        "Composición Mensual de Delitos (%)",
+        fontsize=18,
+        color=PALETTE["text"],
+        pad=12,
+    )
+
+    ax.set_ylabel(
+        "Porcentaje dentro de cada mes (%)", fontsize=14, color=PALETTE["text"]
+    )
     ax.set_xlabel("")
-    ax.tick_params(axis="x", rotation=60, labelsize=18, colors=PALETTE["text"])
-    ax.tick_params(axis="y", labelsize=20, colors=PALETTE["text"])
+    ax.tick_params(axis="x", rotation=60, labelsize=12, colors=PALETTE["text"])
+    ax.tick_params(axis="y", labelsize=12, colors=PALETTE["text"])
     ax.yaxis.grid(True, linestyle="--", linewidth=0.5, color=PALETTE["grid"], alpha=0.6)
 
     for spine in ax.spines.values():

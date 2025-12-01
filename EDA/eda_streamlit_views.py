@@ -1,5 +1,5 @@
 # EDA/eda_streamlit_views.py
-# Dashboard EDA incremental – vistas en Streamlit
+# Incremental EDA dashboard views in Streamlit
 
 from typing import Dict
 
@@ -7,16 +7,9 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-# ===================================================
-# 1. Estilo visual (sin alterar el tema global)
-# ===================================================
 
-
-def inject_dashboard_css():
-    """
-    Estilo para tarjetas KPI y tablas.
-    No tocamos el fondo global de la app (usamos el tema oscuro de Streamlit).
-    """
+def inject_dashboard_css() -> None:
+    """Inject local CSS for KPI cards and tables."""
     st.markdown(
         """
         <style>
@@ -59,7 +52,8 @@ def inject_dashboard_css():
     )
 
 
-def metric_card(title: str, value: str, subtitle: str = ""):
+def metric_card(title: str, value: str, subtitle: str = "") -> None:
+    """Render a single KPI metric card."""
     st.markdown(
         f"""
         <div class="metric-card">
@@ -72,10 +66,7 @@ def metric_card(title: str, value: str, subtitle: str = ""):
     )
 
 
-# ===================================================
-# 2. Nombres formales de columnas
-# ===================================================
-
+# Column name display mapping
 PRETTY_LABELS = {
     "delito_grupo_macro": "Macrogrupo de delito",
     "region_cdmx": "Región de la Ciudad de México",
@@ -86,20 +77,14 @@ PRETTY_LABELS = {
 
 
 def pretty_col(col: str) -> str:
+    """Return a human-readable label for a column."""
     if col in PRETTY_LABELS:
         return PRETTY_LABELS[col]
     return col.replace("_", " ").capitalize()
 
 
-# ===================================================
-# 3. KPIs y tabla de nulos
-# ===================================================
-
-
-def _kpi_calidad_datos(df: pd.DataFrame, stats: Dict):
-    """
-    KPIs de calidad de datos + tabla de columnas con más nulos.
-    """
+def _kpi_calidad_datos(df: pd.DataFrame, stats: Dict) -> None:
+    """Show data-quality KPIs and a table of columns with most missing values."""
     n_rows, n_cols = df.shape
     total_cells = n_rows * n_cols
     n_missing_cells = int(df.isna().sum().sum())
@@ -128,13 +113,10 @@ def _kpi_calidad_datos(df: pd.DataFrame, stats: Dict):
             f"{top_col_n:,} valores nulos",
         )
 
-    # --- Tabla de columnas con más nulos ---
-
     missing_df = stats.get("missing_top20", None)
 
     if isinstance(missing_df, pd.DataFrame) and not missing_df.empty:
-        tabla = missing_df.copy()
-        tabla = tabla.reset_index()
+        tabla = missing_df.copy().reset_index()
         col_names = list(tabla.columns)
 
         rename_map = {}
@@ -163,24 +145,15 @@ def _kpi_calidad_datos(df: pd.DataFrame, stats: Dict):
     st.dataframe(tabla.head(15), use_container_width=True)
 
 
-# ===================================================
-# 4. Filtros
-# ===================================================
-
-
 def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Filtros por alcaldía, macrogrupo y región.
-    """
+    """Apply filters by alcaldía, macrogroup, and region."""
     with st.expander("Filtros del dashboard", expanded=False):
         col1, col2, col3 = st.columns(3)
 
         if "alcaldia_hecho" in df.columns:
             alc_opts = sorted(df["alcaldia_hecho"].dropna().unique().tolist())
             sel_alc = col1.multiselect(
-                "Alcaldía de ocurrencia",
-                options=alc_opts,
-                default=alc_opts,
+                "Alcaldía de ocurrencia", options=alc_opts, default=alc_opts
             )
         else:
             sel_alc = None
@@ -188,9 +161,7 @@ def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
         if "delito_grupo_macro" in df.columns:
             macro_opts = sorted(df["delito_grupo_macro"].dropna().unique().tolist())
             sel_macro = col2.multiselect(
-                "Macrogrupo de delito",
-                options=macro_opts,
-                default=macro_opts,
+                "Macrogrupo de delito", options=macro_opts, default=macro_opts
             )
         else:
             sel_macro = None
@@ -198,9 +169,7 @@ def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
         if "region_cdmx" in df.columns:
             reg_opts = sorted(df["region_cdmx"].dropna().unique().tolist())
             sel_reg = col3.multiselect(
-                "Región de la Ciudad de México",
-                options=reg_opts,
-                default=reg_opts,
+                "Región de la Ciudad de México", options=reg_opts, default=reg_opts
             )
         else:
             sel_reg = None
@@ -216,14 +185,12 @@ def _aplicar_filtros(df: pd.DataFrame) -> pd.DataFrame:
     return df_f
 
 
-# ===================================================
-# 5. Gráficas con Plotly
-# ===================================================
-
-COLOR_SEQ = px.colors.qualitative.Set2  # paleta neutra pero viva
+# Plotly charts
+COLOR_SEQ = px.colors.qualitative.Set2
 
 
-def _grafica_macrogrupo(df: pd.DataFrame):
+def _grafica_macrogrupo(df: pd.DataFrame) -> None:
+    """Render bar chart by macrogroup of crime."""
     if "delito_grupo_macro" not in df.columns:
         st.info("No se encontró la variable de macrogrupo de delito.")
         return
@@ -256,7 +223,8 @@ def _grafica_macrogrupo(df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _grafica_region(df: pd.DataFrame):
+def _grafica_region(df: pd.DataFrame) -> None:
+    """Render pie chart by CDMX region."""
     if "region_cdmx" not in df.columns:
         st.info("No se encontró la variable de región de la Ciudad de México.")
         return
@@ -281,7 +249,8 @@ def _grafica_region(df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _grafica_categorica_dinamica(df: pd.DataFrame):
+def _grafica_categorica_dinamica(df: pd.DataFrame) -> None:
+    """Render configurable bar chart for a categorical variable."""
     st.markdown("**Distribución por variable categórica (configurable)**")
 
     candidates = []
@@ -296,8 +265,7 @@ def _grafica_categorica_dinamica(df: pd.DataFrame):
         return
 
     col_sel = st.selectbox(
-        "Selecciona la variable categórica",
-        options=sorted(candidates),
+        "Selecciona la variable categórica", options=sorted(candidates)
     )
 
     top_n = st.slider(
@@ -330,7 +298,8 @@ def _grafica_categorica_dinamica(df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _grafica_temporal(df: pd.DataFrame):
+def _grafica_temporal(df: pd.DataFrame) -> None:
+    """Render temporal series of incidents with daily/monthly/weekday options."""
     if "fecha_hecho" not in df.columns:
         st.info("No se encontró la variable de fecha del incidente.")
         return
@@ -346,9 +315,7 @@ def _grafica_temporal(df: pd.DataFrame):
         return
 
     modo = st.selectbox(
-        "Agrupación temporal",
-        options=["Día", "Mes", "Día de la semana"],
-        index=0,
+        "Agrupación temporal", options=["Día", "Mes", "Día de la semana"], index=0
     )
 
     if modo == "Día":
@@ -441,28 +408,18 @@ def _grafica_temporal(df: pd.DataFrame):
         st.plotly_chart(fig, use_container_width=True)
 
 
-# ===================================================
-# 6. Render principal llamado desde pagina4
-# ===================================================
-
-
 def render_eda_dashboard(
     nuevos_clean: pd.DataFrame,
     combined: pd.DataFrame,
     stats: Dict,
-):
-    """
-    Dashboard principal para el lote nuevo.
-    Se pinta entre “Acciones rápidas” y “Vistas detalladas”.
-    """
+) -> None:
+    """Render main EDA dashboard for the new batch."""
     inject_dashboard_css()
 
     st.subheader("3) Exploración del lote nuevo (dashboard)")
 
-    # KPIs de calidad de datos
     _kpi_calidad_datos(nuevos_clean, stats)
 
-    # Filtros
     df_f = _aplicar_filtros(nuevos_clean)
     st.caption(
         f"Registros considerados en las gráficas: {len(df_f):,} "
@@ -471,7 +428,6 @@ def render_eda_dashboard(
 
     st.markdown("---")
 
-    # Layout tipo BI: 2 gráficas arriba, 2 abajo
     col_top_left, col_top_right = st.columns([2, 1.6])
     with col_top_left:
         _grafica_macrogrupo(df_f)

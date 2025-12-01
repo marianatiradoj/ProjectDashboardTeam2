@@ -12,10 +12,8 @@ from ml.model_views import compute_predictions_for_dt
 from ml.ml_kpis import get_tipo_options, resolve_prob_column, compute_kpis
 
 
-# -------------------------------------------------
-# Helper: encontrar la columna de colonia
-# -------------------------------------------------
 def _find_colonia_col(df: pd.DataFrame | None) -> str | None:
+    """Infer the column name that represents colonia."""
     if df is None:
         return None
 
@@ -38,9 +36,7 @@ def _find_colonia_col(df: pd.DataFrame | None) -> str | None:
     return None
 
 
-# -------------------------------------------------
-# Mapeos a español
-# -------------------------------------------------
+# Spanish label mapping for probability columns
 SPANISH_COL_NAMES = {
     "prob_total": "Total (todos los delitos)",
     "prob_tipo_NON_CRIME_OTHER": "Administrativo",
@@ -53,17 +49,16 @@ SPANISH_COL_NAMES = {
 
 
 def fmt_dec4(x):
+    """Format numeric value with four decimal places."""
     try:
         return float(f"{float(x):.4f}")
     except Exception:
         return x
 
 
-# -------------------------------------------------
-# FUNCIÓN PRINCIPAL DEL DASHBOARD (llamar desde página 1)
-# -------------------------------------------------
 def run_model_dashboard(bundle) -> None:
-    # ================= SIDEBAR ==================
+    """Render the predictive risk dashboard for all colonias."""
+    # Sidebar controls
     st.sidebar.header("🎛 Parámetros de predicción")
 
     fecha = st.sidebar.date_input("Fecha")
@@ -103,13 +98,13 @@ def run_model_dashboard(bundle) -> None:
 
         dt_inicio = datetime.combine(fecha, hora_inicio)
 
-    # Filtro de tipo/delito
+    # Crime type filter
     tipo_label = st.sidebar.selectbox(
         "Tipo de probabilidad / delito",
         get_tipo_options(),
     )
 
-    # ================= TÍTULO + DESCRIPCIÓN ==================
+    # Title and description
     st.title("🔮 Panel de predicción de riesgo delictivo por colonia")
 
     st.markdown(
@@ -124,7 +119,7 @@ para una fecha y hora específicas.
         """
     )
 
-    # ================= CONTROL DE TIEMPO ==================
+    # Time control
     if modo_tiempo == "Punto en el tiempo":
         dt_actual = datetime.combine(fecha, hora)
     else:
@@ -137,7 +132,7 @@ para una fecha y hora específicas.
         )
         dt_actual = dt_inicio + timedelta(hours=idx)
 
-    # ================= CÁLCULO INICIAL ==================
+    # Initial model predictions
     with st.spinner("Calculando predicción del modelo..."):
         outputs_initial = compute_predictions_for_dt(
             dt=dt_actual,
@@ -152,7 +147,7 @@ para una fecha y hora específicas.
 
     colonia_col_map = _find_colonia_col(df_map_initial)
 
-    # ================= FILTROS DINÁMICOS ==================
+    # Dynamic filters
     risk_filter = st.sidebar.selectbox(
         "Escala de riesgo (nivel global)",
         ["Todos", "Muy bajo", "Bajo", "Medio", "Alto", "Muy alto"],
@@ -169,7 +164,7 @@ para una fecha y hora específicas.
     else:
         colonia_busqueda = "Todas las colonias"
 
-    # ================= REPRODUCCIÓN AUTOMÁTICA ==================
+    # Playback controls
     reproducir = False
     velocidad = 0.5
     if modo_tiempo != "Punto en el tiempo":
@@ -182,9 +177,6 @@ para una fecha y hora específicas.
         )
         reproducir = st.sidebar.button("▶ Iniciar reproducción")
 
-    # =====================================================
-    # RENDER INTERNO
-    # =====================================================
     placeholder = st.empty()
 
     def render_frame(
@@ -194,7 +186,8 @@ para una fecha y hora específicas.
         risk_filter: str,
         precomputed=None,
     ):
-        # ---- obtener datos ----
+        """Render a single frame (time slice) of the dashboard."""
+        # Data retrieval
         if precomputed is None:
             outputs_local = compute_predictions_for_dt(dt, bundle, [])
         else:
@@ -204,13 +197,13 @@ para una fecha y hora específicas.
         df_table = outputs_local.df_table.copy()
         col_map = _find_colonia_col(df_map)
 
-        # asegurar lat/lon
+        # Ensure lat/lon columns exist
         if "lat" not in df_map.columns and "centroid_lat" in df_map.columns:
             df_map["lat"] = df_map["centroid_lat"]
         if "lon" not in df_map.columns and "centroid_lon" in df_map.columns:
             df_map["lon"] = df_map["centroid_lon"]
 
-        # ---- FILTROS ----
+        # Filters
         if risk_filter != "Todos" and "risk_label" in df_map.columns:
             df_map = df_map[df_map["risk_label"] == risk_filter]
 
@@ -223,9 +216,7 @@ para una fecha y hora específicas.
             return
 
         with placeholder.container():
-            # ======================
-            # ENCABEZADO: FECHA + HORA
-            # ======================
+            # Header: date and time
             st.markdown(
                 f"""
                 <h3 style="margin-top:8px; margin-bottom:4px; color:#e2e8f0;">
@@ -236,9 +227,7 @@ para una fecha y hora específicas.
                 unsafe_allow_html=True,
             )
 
-            # ======================
             # KPIs
-            # ======================
             prob_col = resolve_prob_column(tipo_label, df_map)
             kpis = compute_kpis(df_map, prob_col)
 
@@ -279,9 +268,7 @@ para una fecha y hora específicas.
                 unsafe_allow_html=True,
             )
 
-            # =====================================================
-            # EXPANDER TACÓMETROS (sin el total)
-            # =====================================================
+            # Gauges by crime type
             with st.expander("📊 Ver detalle por tipo de delito (tacómetros)"):
                 st.markdown("#### Probabilidad por tipo de delito")
 
@@ -342,8 +329,8 @@ para una fecha y hora específicas.
                                     "segment:N",
                                     scale=alt.Scale(
                                         range=[
-                                            "#38bdf8",  # azul claro
-                                            "#020617",  # fondo
+                                            "#38bdf8",
+                                            "#020617",
                                         ]
                                     ),
                                     legend=None,
@@ -374,14 +361,12 @@ para una fecha y hora específicas.
 
                         st.altair_chart(base + text1 + text2, use_container_width=False)
 
-            # =====================================================
-            # TABLA + MAPA (side-by-side)
-            # =====================================================
+            # Table and map
             st.markdown("### 📋 Colonias con probabilidad y mapa de riesgo")
 
             tabla_col, mapa_col = st.columns([1.1, 1.9])
 
-            # ---------- TABLA ----------
+            # Table
             with tabla_col:
                 col_name = SPANISH_COL_NAMES.get(prob_col, prob_col)
 
@@ -392,7 +377,6 @@ para una fecha y hora específicas.
                         columns={col_map: "Colonia", prob_col: col_name}
                     )
 
-                    # formato porcentaje
                     df_show[col_name] = df_show[col_name].map(
                         lambda x: f"{float(x) * 100:.2f}%"
                     )
@@ -417,19 +401,16 @@ para una fecha y hora específicas.
                         use_container_width=True,
                     )
 
-            # ---------- MAPA ----------
+            # Map
             with mapa_col:
                 df_map["proba_mapa"] = df_map[prob_col].clip(0, 1)
 
-                # tamaño según prob
                 df_map["size"] = 50 + (df_map["proba_mapa"] ** 2) * 800
 
-                # colores tipo heatmap
                 df_map["color_r"] = (df_map["proba_mapa"] * 255).astype(int)
                 df_map["color_g"] = (150 - df_map["proba_mapa"] * 150).astype(int)
                 df_map["color_b"] = 40
 
-                # 🔍 ZOOM MÁS ABIERTO PARA VER MEJOR LA CIUDAD
                 zoom = 11 if colonia_busqueda == "Todas las colonias" else 13
 
                 view = pdk.ViewState(
@@ -472,7 +453,7 @@ para una fecha y hora específicas.
 
                 st.pydeck_chart(deck, use_container_width=True, height=550)
 
-    # ================= PRIMER FRAME ==================
+    # Initial frame
     render_frame(
         dt_actual,
         tipo_label,
@@ -481,7 +462,7 @@ para una fecha y hora específicas.
         precomputed=outputs_initial,
     )
 
-    # ================= REPRODUCCIÓN ==================
+    # Playback over the time series
     if modo_tiempo != "Punto en el tiempo" and reproducir:
         for step in range(total_steps):
             dt_step = dt_inicio + timedelta(hours=step)

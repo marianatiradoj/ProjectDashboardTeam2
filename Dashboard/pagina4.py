@@ -1,48 +1,40 @@
-import os
-import sys
+# Dashboard/pagina4.py
 import json
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from ui.theme_dark import apply_theme
-from core.data_loader import load_central_dataset, DATASET_PATH
+from config import DATA_PATH, ROOT_DIR
+from core.data_loader import load_central_dataset
 from EDA.eda_pipeline import run_eda_for_upload
 from EDA.eda_streamlit_views import render_eda_dashboard
 
 
-# --- Initial configuration and global theme ---
+# Page config (title + layout + global theme)
 st.set_page_config(
     page_title="Integración & EDA de Datos",
     layout="wide",
 )
 apply_theme()
 
-
-# --- Paths and EDA configuration ---
-THIS_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.dirname(THIS_DIR)
-EDA_DIR = os.path.join(ROOT_DIR, "EDA")
-
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
-REGEX_JAM_PATH = os.path.join(EDA_DIR, "regex_config.jam")
+# Path to regex configuration file used in the EDA pipeline
+REGEX_JAM_PATH: Path = ROOT_DIR / "EDA" / "regex_config.jam"
 
 
-def main():
+def main() -> None:
     """Main entrypoint for the EDA & data integration page."""
-
     st.title("Integración & EDA de Datos")
     st.caption("Carga incremental, limpieza y validación del dataset histórico.")
     st.divider()
 
-    # --- Load central historical dataset (cached) ---
+    # Load central historical dataset (cached in core.data_loader)
     central_df = load_central_dataset()
 
     col_info, col_upload = st.columns([2, 3])
 
-    # --- Left card: dataset overview ---
+    # Left card: dataset overview (current active base)
     with col_info:
         st.markdown(
             f"""
@@ -51,7 +43,7 @@ def main():
                 Dataset histórico activo
               </div>
               <div style="font-size:1.3rem; font-weight:600; margin-top:0.25rem;">
-                {os.path.basename(DATASET_PATH)}
+                {DATA_PATH.name}
               </div>
               <div style="font-size:0.9rem; opacity:0.85; margin-top:0.2rem;">
                 {len(central_df):,} registros · {central_df.shape[1]} columnas
@@ -61,7 +53,7 @@ def main():
             unsafe_allow_html=True,
         )
 
-    # --- Right card: upload area ---
+    # Right card: file upload for new batch
     with col_upload:
         st.markdown(
             """
@@ -79,7 +71,7 @@ def main():
             key="uploader_nuevos",
         )
 
-    # --- EDA parameters (optional) ---
+    # Optional EDA parameters (currently not wired into pipeline)
     with st.expander("Parámetros del EDA", expanded=False):
         fecha_col = st.text_input(
             "Columna de fecha del incidente",
@@ -106,18 +98,19 @@ def main():
             help="Solo aplica si habilitas la opción de clima.",
         )
 
-    # (Parameters kept for future use if needed)
+    # Reserved for future use (kept to avoid unused variable warnings)
     _ = fecha_col, alcaldia_col, ventana_quincenal
 
+    # Require a file before running EDA
     if uploaded is None:
         st.info(
             "Sube un archivo para ejecutar el EDA e integrarlo al dataset histórico."
         )
         return
 
-    # --- Generic file reader (CSV / Parquet) ---
+    # Generic file reader (CSV / Parquet) for the uploaded batch
     def _read_any(file) -> pd.DataFrame:
-        """Read uploaded file as CSV or Parquet."""
+        """Read uploaded file as CSV or Parquet based on file extension."""
         name = file.name.lower()
         if name.endswith(".csv"):
             return pd.read_csv(file)
@@ -134,28 +127,31 @@ def main():
         f"{nuevos_raw.shape[1]} columnas"
     )
 
-    if not os.path.exists(REGEX_JAM_PATH):
+    # Ensure regex config file exists before running the pipeline
+    if not REGEX_JAM_PATH.exists():
         st.error(f"No se encontró el archivo de patrones: `{REGEX_JAM_PATH}`.")
         return
 
-    # --- Optional weather enrichment ---
+    # Optional weather enrichment (path validation only)
     clima_csv = None
     if usar_clima:
         p = clima_path.strip()
-        if p and os.path.exists(p):
-            clima_csv = p
-        elif p:
-            st.warning(
-                f"No se encontró el archivo de clima en la ruta: `{p}`. "
-                "Se continuará sin enriquecer con clima."
-            )
+        if p:
+            clima_file = Path(p)
+            if clima_file.exists():
+                clima_csv = str(clima_file)
+            else:
+                st.warning(
+                    f"No se encontró el archivo de clima en la ruta: `{p}`. "
+                    "Se continuará sin enriquecer con clima."
+                )
 
-    # --- Run EDA pipeline for the new batch ---
+    # Run full EDA pipeline for the new batch
     with st.spinner("Ejecutando EDA sobre los nuevos registros…"):
         nuevos_clean, stats = run_eda_for_upload(
             df_raw=nuevos_raw,
             clima_csv_path=clima_csv,
-            regex_config_path=REGEX_JAM_PATH,
+            regex_config_path=str(REGEX_JAM_PATH),
         )
 
     st.success("EDA completado sobre el lote nuevo.")
@@ -164,7 +160,7 @@ def main():
         f"{nuevos_clean.shape[1]} columnas"
     )
 
-    # --- Incremental integration with central historical dataset ---
+    # Incremental integration with central historical dataset (no deduplication here)
     st.subheader("Integración con el dataset histórico")
 
     all_cols = sorted(set(central_df.columns) | set(nuevos_clean.columns))
@@ -178,12 +174,12 @@ def main():
         f"(dataset histórico: {len(central_df):,} + lote nuevo: {len(nuevos_clean):,})"
     )
 
-    # --- Quick actions: save, download, audit ---
+    # Quick actions: save updated base, download batch, download combined base, audit
     st.subheader("Acciones rápidas")
 
     c1, c2, c3, c4 = st.columns(4)
 
-    # Update central dataset on disk
+    # Overwrite central dataset on disk (FGJ_CLEAN_Final.csv)
     with c1:
         st.caption("Actualizar archivo del dataset histórico")
         confirm = st.checkbox(
@@ -192,12 +188,12 @@ def main():
         )
         if confirm and st.button("Sobrescribir dataset histórico"):
             try:
-                combined_df.to_csv(DATASET_PATH, index=False)
+                combined_df.to_csv(DATA_PATH, index=False)
                 st.success("Dataset histórico actualizado correctamente.")
             except Exception as e:
                 st.error(f"Error al guardar el dataset histórico: {e}")
 
-    # Download cleaned batch
+    # Download cleaned new batch
     with c2:
         st.caption("Descargar lote limpio")
         st.download_button(
@@ -217,7 +213,7 @@ def main():
             mime="text/csv",
         )
 
-    # Download EDA audit
+    # Download EDA audit (JSON with stats + diagnostics)
     with c4:
         st.caption("Descargar auditoría del EDA")
 
@@ -241,13 +237,13 @@ def main():
 
     st.divider()
 
-    # --- EDA dashboard for the new batch ---
+    # Visual EDA dashboard for the new batch
     st.subheader("Dashboard del EDA para el lote nuevo")
     render_eda_dashboard(nuevos_clean, combined_df, stats)
 
     st.divider()
 
 
-# --- Streamlit entrypoint ---
+# Streamlit entrypoint (for local execution)
 if __name__ == "__main__":
     main()

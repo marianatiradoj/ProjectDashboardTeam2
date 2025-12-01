@@ -1,13 +1,11 @@
 # ml/model_views.py
 """
-Helpers de alto nivel para Streamlit.
-
-- Usa CrimeModelBundle + predict_for_datetime
-- Devuelve:
-  - df_pred: dataframe completo de predicción
-  - df_table: vista amigable para tabla
-  - df_map: vista lista para pydeck (lat, lon, prob_total, risk_label,
-            colores RGB, colonia y prob_tipo_*)
+- Use CrimeModelBundle + predict_for_datetime.
+- Return:
+  - df_pred: full prediction dataframe
+  - df_table: table-friendly view
+  - df_map: map-ready view for pydeck (lat, lon, prob_total, risk_label,
+            RGB colors, colonia, and prob_tipo_* columns)
 """
 
 from __future__ import annotations
@@ -23,6 +21,8 @@ from .ml_analysis import CrimeModelBundle, predict_for_datetime
 
 @dataclass
 class PredictionOutputs:
+    """Container for model predictions and views."""
+
     df_pred: pd.DataFrame
     df_table: pd.DataFrame
     df_map: Optional[pd.DataFrame]
@@ -31,6 +31,7 @@ class PredictionOutputs:
 
 
 def _detect_alcaldia_col(df: pd.DataFrame) -> Optional[str]:
+    """Detect alcaldía column using a simple set of candidates."""
     candidates = ["alcaldia", "ALCALDIA", "alcaldia_hecho", "alcaldia_nombre"]
     for c in candidates:
         if c in df.columns:
@@ -39,6 +40,7 @@ def _detect_alcaldia_col(df: pd.DataFrame) -> Optional[str]:
 
 
 def _detect_colonia_col(df: pd.DataFrame) -> Optional[str]:
+    """Detect colonia column using a simple set of candidates."""
     candidates = [
         "colonia_catalogo",
         "colonia",
@@ -57,18 +59,19 @@ def compute_predictions_for_dt(
     bundle: CrimeModelBundle,
     alcaldias_sel: Optional[list[str]] = None,
 ) -> PredictionOutputs:
-    # 1) Inferencia cruda
+    """Run model inference for a datetime and build table/map views."""
+    # Raw inference
     df_pred = predict_for_datetime(dt, bundle)
 
-    # 2) Detectar columnas de alcaldía/colonia
+    # Detect alcaldía / colonia columns
     alcaldia_col = _detect_alcaldia_col(df_pred)
     colonia_col = _detect_colonia_col(df_pred)
 
-    # 3) Filtro por alcaldía (si aplica)
+    # Optional filter by alcaldía
     if alcaldia_col and alcaldias_sel:
         df_pred = df_pred[df_pred[alcaldia_col].astype(str).isin(alcaldias_sel)]
 
-    # 4) Orden y etiqueta de riesgo
+    # Risk labeling based on prob_total
     if "prob_total" in df_pred.columns:
         df_pred = df_pred.sort_values("prob_total", ascending=False)
 
@@ -83,7 +86,7 @@ def compute_predictions_for_dt(
     else:
         df_pred["risk_label"] = None
 
-    # 5) Tabla amigable
+    # Table-friendly view
     cols: List[str] = []
     if colonia_col:
         cols.append(colonia_col)
@@ -96,7 +99,7 @@ def compute_predictions_for_dt(
 
     df_table = df_pred[cols].copy() if cols else df_pred.copy()
 
-    # 6) Dataframe para mapa (incluyendo prob_tipo_*)
+    # Map-ready dataframe (includes prob_tipo_* columns)
     lat_col = "centroid_lat"
     lon_col = "centroid_lon"
 
@@ -105,15 +108,11 @@ def compute_predictions_for_dt(
         and lon_col in df_pred.columns
         and "prob_total" in df_pred.columns
     ):
-        # columnas base para el mapa
         map_cols = [lat_col, lon_col, "prob_total", "risk_label"]
 
-        # agregar todas las columnas prob_tipo_*
         prob_tipo_cols = [c for c in df_pred.columns if c.startswith("prob_tipo_")]
         map_cols.extend(prob_tipo_cols)
 
-        # colonia / alcaldía (aunque ya no usaremos alcaldía en el tooltip,
-        # la dejamos disponible por si se requiere luego)
         if colonia_col:
             map_cols.append(colonia_col)
         if alcaldia_col:
@@ -131,7 +130,7 @@ def compute_predictions_for_dt(
 
         df_map = df_map.rename(columns=rename_dict)
 
-        # Colores RGB por nivel de riesgo
+        # RGB colors by risk category
         color_map = {
             "Muy bajo": (56, 168, 0),
             "Bajo": (139, 209, 0),

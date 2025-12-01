@@ -128,7 +128,6 @@ def render_kpi_cards(kpis: Dict[str, Any]) -> None:
     Render KPI cards in two logical rows:
         - Row 1: volume and coverage indicators.
         - Row 2: profile of crime concentration.
-    Visual styles are defined in ui/kpi_styles.css.
     """
 
     total_incidents = kpis.get("total_incidents", 0)

@@ -5,23 +5,22 @@ from typing import Iterable, Optional, Tuple, List
 
 import pandas as pd
 
-# COLUMNAS CLAVE 
-HORA_COL = "hour_int"              # hora en entero 0–23
-RAW_HOUR_COL = "hora_hecho"        
+# Core columns
+HORA_COL = "hour_int"  # hour as integer 0–23
+RAW_HOUR_COL = "hora_hecho"
 
-# Aliases para compatibilidad con código viejo
-HOUR_COL = HORA_COL                
+# Aliases for backward compatibility
+HOUR_COL = HORA_COL
 
-MONTH_COL = "mes_hecho"            
-WEEKDAY_COL = "dia"               
-ZONA_COL = "region_cdmx"           
+MONTH_COL = "mes_hecho"
+WEEKDAY_COL = "dia"
+ZONA_COL = "region_cdmx"
 DELITO_COL = "delito_grupo"
 DELITO_MACRO_COL = "delito_grupo_macro"
 
-
 DIA_COL = WEEKDAY_COL
 
-# Orden meses y días
+# Month and weekday order for plotting
 MONTH_ORDER: List[str] = [
     "ENERO",
     "FEBRERO",
@@ -47,35 +46,29 @@ WEEKDAY_ORDER: List[str] = [
     "DOMINGO",
 ]
 
-# Alias para compatibilidad con código viejo
+# Alias for backward compatibility
 DAY_ORDER = WEEKDAY_ORDER
 
-
-# PALETA
+# Color palette for charts
 PALETTE = {
     "bg_fig": "#020617",
     "bg_axes": "#020617",
     "grid": "#1E293B",
     "text": "#E5E7EB",
-
-    # Barras
+    # Bars
     "bar_light": "#60A5FA",
     "bar_main": "#2563EB",
     "bar_dark": "#1D4ED8",
-
-    # Líneas (serie semanal)
-    "line": "#60A5FA",       
-    "line_alt": "#93C5FD",   
-
-    
+    # Lines (weekly series)
+    "line": "#60A5FA",
+    "line_alt": "#93C5FD",
 }
 
 
-# NORMALIZAR HORA 
 def normalize_hour_column(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Asegura que exista la columna HORA_COL (0–23) a partir de hora_hecho.
-    No rompe nada si ya existe.
+    Ensure HORA_COL (0–23) exists, derived from RAW_HOUR_COL if needed.
+    Does nothing if the column already exists.
     """
     if HORA_COL in df.columns:
         df[HORA_COL] = pd.to_numeric(df[HORA_COL], errors="coerce").astype("Int64")
@@ -88,7 +81,6 @@ def normalize_hour_column(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# FILTROS COMUNES 
 def apply_common_filters(
     df: pd.DataFrame,
     hour_range: Optional[Tuple[int, int]] = None,
@@ -98,15 +90,15 @@ def apply_common_filters(
     tipos_crimen: Optional[Iterable[str]] = None,
 ) -> pd.DataFrame:
     """
-    Aplica TODOS los filtros globales al DataFrame de forma consistente.
-    Cualquier parámetro en None o "Todos"/"Todas" se IGNORA.
+    Apply all global filters in a consistent way.
+    Any parameter set to None or 'Todos'/'Todas' is ignored.
     """
     df_f = df.copy()
 
-    # Normalizar hora
+    # Normalize hour column
     df_f = normalize_hour_column(df_f)
 
-    # Hora
+    # Hour filter
     if (
         hour_range is not None
         and HORA_COL in df_f.columns
@@ -115,19 +107,19 @@ def apply_common_filters(
         h0, h1 = hour_range
         df_f = df_f[(df_f[HORA_COL] >= h0) & (df_f[HORA_COL] <= h1)]
 
-    # Mes
+    # Month filter
     if mes and mes != "Todos" and MONTH_COL in df_f.columns:
         df_f = df_f[df_f[MONTH_COL] == mes]
 
-    # Día de la semana
+    # Weekday filter
     if dia_semana and dia_semana != "Todos" and WEEKDAY_COL in df_f.columns:
         df_f = df_f[df_f[WEEKDAY_COL] == dia_semana]
 
-    # Zona / región CDMX
+    # Zone / region filter
     if zona and zona != "Todas" and ZONA_COL in df_f.columns:
         df_f = df_f[df_f[ZONA_COL] == zona]
 
-    # Tipo de crimen (macro)
+    # Crime type filter (macro or specific)
     if tipos_crimen:
         tipos_crimen = list(tipos_crimen)
         if DELITO_MACRO_COL in df_f.columns:

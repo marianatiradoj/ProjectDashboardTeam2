@@ -19,10 +19,9 @@ def render_weekly_timeseries(
     mes: str,
     zona: str,
     tipos_crimen: Optional[List[str]],
-):
+) -> None:
     """
-    Serie: total de delitos por día de la semana.
-    Respeta tipo de crimen, hora, mes y zona.
+    Render weekly time series of total crimes by weekday with global filters.
     """
     df_f = apply_common_filters(
         df,
@@ -60,6 +59,15 @@ def render_weekly_timeseries(
         color=PALETTE["line"],
     )
 
+    # Title
+    ax.set_title(
+        "Tendencia Semanal de Delitos",
+        fontsize=13,
+        color=PALETTE["text"],
+        pad=8,
+    )
+
+    # Value labels on points
     for x, y in zip(counts[DIA_COL], counts["conteo"]):
         ax.text(
             x,

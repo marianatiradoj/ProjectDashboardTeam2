@@ -1,40 +1,37 @@
 # Dashboard/pagina1.py
-import os
-import sys
-
 import streamlit as st
+from pathlib import Path
 
-# ================== RUTAS / IMPORTS ==================
-THIS_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.dirname(THIS_DIR)
-
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
+from config import ROOT_DIR  # Project root directory
 from ui.theme_dark import apply_theme
 from ml.ml_analysis import load_bundle
 from ml.model_dashboard import run_model_dashboard
 
-# ================== CONFIG GLOBAL DE LA PÁGINA ==================
-st.set_page_config(page_title="Predicción de delitos – Página 1", layout="wide")
+# Page configuration
+st.set_page_config(page_title="Predicción de delitos", layout="wide")
 apply_theme()
 
-# ================== INYECTAR CSS DE KPIs ==================
-kpi_css_path = os.path.join(ROOT_DIR, "ui", "kpi_styles.css")
-if os.path.exists(kpi_css_path):
-    with open(kpi_css_path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+# Inject KPI-specific CSS if available
+kpi_css_path = ROOT_DIR / "ui" / "kpi_styles.css"
+if kpi_css_path.exists():
+    st.markdown(
+        f"<style>{kpi_css_path.read_text()}</style>",
+        unsafe_allow_html=True,
+    )
 else:
-    st.warning("No se encontró ui/kpi_styles.css. Verifica la ruta del CSS de KPIs.")
+    st.warning("No se encontró el archivo ui/kpi_styles.css.")
 
 
-# ================== CARGA ÚNICA DEL BUNDLE (cacheado) ==================
 @st.cache_resource
 def get_bundle():
+    """
+    Load and cache the full model bundle for inference.
+    """
     return load_bundle()
 
 
+# Cached model bundle used across the page
 bundle = get_bundle()
 
-# ================== CORRER TODO EL DASHBOARD DEL MODELO ==================
+# Run main model dashboard
 run_model_dashboard(bundle)

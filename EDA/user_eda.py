@@ -1,16 +1,16 @@
 # user_eda.py
-# Script de prueba local. En Streamlit NO lo necesitas, pero sirve para validar.
+# Local test script to validate the EDA pipeline outside Streamlit.
 
 from eda_pipeline import run_eda_for_upload, append_to_base_csv
 from update_base import robust_read_csv
 
 
-def main():
-    # Ajusta estas rutas a tu entorno local
-    DATA_CSV = "/ruta/a/tu/nuevo_archivo.csv"  # archivo "crudo" nuevo
+def main() -> None:
+    """Run a local EDA test over a new CSV batch."""
+    DATA_CSV = "/ruta/a/tu/nuevo_archivo.csv"
     CLIMA_CSV = "/ruta/a/Clima_Delegaciones.csv"
-    BASE_LIMPIA = "/ruta/a/FGJ_CLEAN_base.csv"  # base ya limpia
-    OUTPUT_BASE = "/ruta/a/FGJ_CLEAN_actualizada.csv"  # salida combinada
+    BASE_LIMPIA = "/ruta/a/FGJ_CLEAN_base.csv"
+    OUTPUT_BASE = "/ruta/a/FGJ_CLEAN_actualizada.csv"
 
     df_raw = robust_read_csv(DATA_CSV)
 

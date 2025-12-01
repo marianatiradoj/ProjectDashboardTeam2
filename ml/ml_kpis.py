@@ -6,7 +6,7 @@ from typing import Dict
 
 import pandas as pd
 
-# Mapeo: etiqueta en español -> nombre de columna interna
+# Mapping: UI label → internal probability column
 TIPO_MAP = OrderedDict(
     [
         ("Total (todos los delitos)", None),
@@ -21,19 +21,12 @@ TIPO_MAP = OrderedDict(
 
 
 def get_tipo_options():
-    """
-    Devuelve la lista de etiquetas en español para usar en el selectbox.
-    """
+    """Return the list of Spanish labels for the UI selector."""
     return list(TIPO_MAP.keys())
 
 
 def resolve_prob_column(tipo_label: str, df_map: pd.DataFrame) -> str:
-    """
-    A partir de la etiqueta en español, devuelve el nombre de columna interna
-    que se usará para el tamaño del círculo y KPIs.
-
-    Si no existe en df_map, usa 'prob_total'.
-    """
+    """Return the corresponding probability column or fallback to prob_total."""
     internal = TIPO_MAP.get(tipo_label)
     if internal is None or internal not in df_map.columns:
         return "prob_total"
@@ -41,25 +34,16 @@ def resolve_prob_column(tipo_label: str, df_map: pd.DataFrame) -> str:
 
 
 def compute_kpis(df_map: pd.DataFrame, prob_col: str) -> Dict[str, float]:
-    """
-    Calcula KPIs básicos a partir de df_map y la columna de probabilidad elegida.
-    Devuelve un diccionario con:
-        - total_colonias
-        - mean_prob
-        - max_prob
-        - high_risk_count
-        - high_risk_pct
-        - top_colonia
-    """
+    """Compute KPI metrics given a probability column."""
     if prob_col not in df_map.columns:
-        raise ValueError(f"La columna de probabilidad '{prob_col}' no existe en df_map")
+        raise ValueError(f"Probability column '{prob_col}' not found in df_map")
 
     serie = df_map[prob_col].astype(float).clip(0, 1)
     total_colonias = int(len(df_map))
     mean_prob = float(serie.mean()) if total_colonias > 0 else 0.0
     max_prob = float(serie.max()) if total_colonias > 0 else 0.0
 
-    # Colonias en riesgo ALTO o MUY ALTO
+    # Risk counts
     if "risk_label" in df_map.columns:
         high_mask = df_map["risk_label"].isin(["Alto", "Muy alto"])
         high_risk_count = int(high_mask.sum())
@@ -70,7 +54,7 @@ def compute_kpis(df_map: pd.DataFrame, prob_col: str) -> Dict[str, float]:
         (high_risk_count / total_colonias * 100.0) if total_colonias > 0 else 0.0
     )
 
-    # Colonia con mayor probabilidad para ese tipo
+    # Top colonia by probability
     try:
         idxmax = serie.idxmax()
         row = df_map.loc[idxmax]

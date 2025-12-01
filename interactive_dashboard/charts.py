@@ -10,7 +10,7 @@ All display texts are in Spanish for end users. Code comments remain in English.
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Any
 
 import altair as alt
 import pandas as pd
@@ -23,11 +23,11 @@ alt.data_transformers.disable_max_rows()
 # ---------------------------------------------------------------------
 # Shared label mapping (same spirit as filters / KPIs)
 # ---------------------------------------------------------------------
-def _prettify_label(value: str) -> str:
+def _prettify_label(value: Any) -> str:
     """
     Convert raw categorical codes into human-friendly labels.
 
-    This mirrors the mapping logic used by filters:
+    Mirrors filters logic:
     - Replace underscores with spaces.
     - Use title case for display.
     """
@@ -39,13 +39,6 @@ def _prettify_label(value: str) -> str:
 def _configure_chart(base: alt.Chart, height: int = 320) -> alt.Chart:
     """
     Apply common visual configuration to all charts.
-
-    Args:
-        base (alt.Chart): Altair chart instance.
-        height (int): Base height for the visualization.
-
-    Returns:
-        alt.Chart: Configured chart.
     """
     return (
         base.properties(height=height)
@@ -77,9 +70,6 @@ def _empty_chart(title: str) -> alt.Chart:
 def _chart_monthly_timeseries(df: pd.DataFrame) -> alt.Chart:
     """
     Monthly incident time series using 'fecha_hecho'.
-
-    The function aggregates records by month in pandas to avoid
-    sending millions of rows to the browser.
     """
     title = "Evolución mensual de incidentes"
 
@@ -119,27 +109,23 @@ def _chart_monthly_timeseries(df: pd.DataFrame) -> alt.Chart:
 
 def _chart_by_macro(df: pd.DataFrame, top_n: int = 10) -> alt.Chart:
     """
-    Horizontal bar chart showing incidents by main crime type.
-
-    Args:
-        df (pd.DataFrame): Filtered dataset.
-        top_n (int): Maximum number of categories to display.
+    Bar chart: incidents by main crime macro group.
     """
     title = "Incidentes por tipo principal de delito"
 
     if "delito_grupo_macro" not in df.columns or df.empty:
         return _empty_chart(title)
 
-    # Robust value_counts → reset_index pattern
     counts = df["delito_grupo_macro"].dropna().astype(str).value_counts()
 
     if counts.empty:
         return _empty_chart(title)
 
     counts = counts.rename_axis("codigo_macro").reset_index(name="incidentes")
-
-    # Apply prettify mapping for display labels
     counts["tipo_delito"] = counts["codigo_macro"].map(_prettify_label)
+
+    # Limit to Top N if needed
+    counts = counts.head(top_n)
 
     base = (
         alt.Chart(counts)
@@ -162,13 +148,57 @@ def _chart_by_macro(df: pd.DataFrame, top_n: int = 10) -> alt.Chart:
     return _configure_chart(base, height=320)
 
 
+def _chart_by_group_within_macro(
+    df: pd.DataFrame,
+    macro_value: Any,
+    top_n: int = 15,
+) -> alt.Chart:
+    """
+    Bar chart: incidents by 'delito_grupo' inside the selected macro group.
+
+    Used when user has chosen a specific 'Tipo principal de delito'
+    in the filters (not 'Totalidad').
+    """
+    if "delito_grupo" not in df.columns or df.empty:
+        return _empty_chart("Distribución de subgrupos de delito")
+
+    counts = df["delito_grupo"].dropna().astype(str).value_counts()
+    if counts.empty:
+        return _empty_chart("Distribución de subgrupos de delito")
+
+    counts = counts.rename_axis("codigo_grupo").reset_index(name="incidentes")
+    counts["grupo_delito"] = counts["codigo_grupo"].map(_prettify_label)
+
+    # Top N subgroups for readability
+    counts = counts.head(top_n)
+
+    macro_label = _prettify_label(macro_value)
+    title = f"Distribución de subgrupos dentro de {macro_label}"
+
+    base = (
+        alt.Chart(counts)
+        .mark_bar()
+        .encode(
+            x=alt.X("incidentes:Q", title="Número de incidentes"),
+            y=alt.Y(
+                "grupo_delito:N",
+                title="Grupo del delito",
+                sort="-x",
+            ),
+            tooltip=[
+                alt.Tooltip("grupo_delito:N", title="Grupo del delito"),
+                alt.Tooltip("incidentes:Q", title="Incidentes"),
+            ],
+        )
+        .properties(title=title)
+    )
+
+    return _configure_chart(base, height=320)
+
+
 def _chart_by_alcaldia(df: pd.DataFrame, top_n: int = 10) -> alt.Chart:
     """
-    Horizontal bar chart showing incidents by municipality of the event.
-
-    Args:
-        df (pd.DataFrame): Filtered dataset.
-        top_n (int): Maximum number of categories to display.
+    Bar chart: incidents by municipality (alcaldía).
     """
     title = "Incidentes por alcaldía"
 
@@ -181,8 +211,9 @@ def _chart_by_alcaldia(df: pd.DataFrame, top_n: int = 10) -> alt.Chart:
         return _empty_chart(title)
 
     counts = counts.rename_axis("codigo_alc").reset_index(name="incidentes")
-
     counts["alcaldia_label"] = counts["codigo_alc"].map(_prettify_label)
+
+    counts = counts.head(top_n)
 
     base = (
         alt.Chart(counts)
@@ -207,13 +238,7 @@ def _chart_by_alcaldia(df: pd.DataFrame, top_n: int = 10) -> alt.Chart:
 
 def _chart_heatmap_weekday_hour(df: pd.DataFrame) -> alt.Chart:
     """
-    Heatmap of incident counts by weekday and hour period.
-
-    Assumes:
-        - 'dia' contains weekday names (already mapped in filters/KPIs).
-        - 'periodo_hora' contains discrete time-of-day segments.
-
-    The function returns an empty chart if those columns are not available.
+    Heatmap of incident counts by weekday and time-of-day segment.
     """
     title = "Distribución de incidentes por día y periodo del día"
 
@@ -221,11 +246,9 @@ def _chart_heatmap_weekday_hour(df: pd.DataFrame) -> alt.Chart:
         return _empty_chart(title)
 
     heat_df = df[["dia", "periodo_hora"]].dropna().copy()
-
     if heat_df.empty:
         return _empty_chart(title)
 
-    # Apply prettify mapping for labels used in the heatmap
     heat_df["dia_label"] = heat_df["dia"].astype(str)
     heat_df["periodo_label"] = heat_df["periodo_hora"].astype(str)
 
@@ -234,7 +257,6 @@ def _chart_heatmap_weekday_hour(df: pd.DataFrame) -> alt.Chart:
         .size()
         .reset_index(name="incidentes")
     )
-
     if heat_df.empty:
         return _empty_chart(title)
 
@@ -285,15 +307,14 @@ def _chart_heatmap_weekday_hour(df: pd.DataFrame) -> alt.Chart:
 # ---------------------------------------------------------------------
 # Public entrypoint used in pagina5.py
 # ---------------------------------------------------------------------
-def render_main_charts(df: pd.DataFrame, seleccion: Dict) -> None:
+def render_main_charts(df: pd.DataFrame, seleccion: Dict[str, Any]) -> None:
     """
     Render the main set of charts for the interactive dashboard.
 
     Args:
-        df (pd.DataFrame): Filtered dataframe after applying all user selections.
-        seleccion (Dict): Dictionary describing current filter selections.
-                          Currently not used inside the charts, but kept
-                          for future contextual annotations.
+        df: Filtered dataframe after applying all user selections.
+        seleccion: Current filter selections. Uses 'delito_grupo_macro'
+                   to switch the left chart when a macro crime type is chosen.
     """
     if df is None or df.empty:
         st.info(
@@ -310,9 +331,16 @@ def render_main_charts(df: pd.DataFrame, seleccion: Dict) -> None:
     st.subheader("Distribución por tipo de delito y alcaldía")
     col1, col2 = st.columns(2)
 
+    # Read macro filter to switch chart behavior
+    macro_selected = seleccion.get("delito_grupo_macro", "Totalidad")
+
     with col1:
-        chart_macro = _chart_by_macro(df)
-        st.altair_chart(chart_macro, use_container_width=True)
+        # If a specific macro is selected, show subgroups distribution
+        if macro_selected and macro_selected != "Totalidad":
+            chart_left = _chart_by_group_within_macro(df, macro_selected)
+        else:
+            chart_left = _chart_by_macro(df)
+        st.altair_chart(chart_left, use_container_width=True)
 
     with col2:
         chart_alc = _chart_by_alcaldia(df)

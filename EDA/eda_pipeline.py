@@ -1,5 +1,4 @@
-# eda_pipeline.py
-# Orquesta el EDA completo. Pensado para usarse desde Streamlit.
+# EDA/eda_pipeline.py
 
 from pathlib import Path
 from typing import Tuple, Dict, Optional
@@ -24,44 +23,20 @@ from .update_base import (
 from .regex_loader import classify_regex
 
 
-# ------------------------------------------------------------
-# Función principal para Streamlit (recibe DataFrame subido)
-# ------------------------------------------------------------
-
-
 def run_eda_for_upload(
     df_raw: pd.DataFrame,
     clima_csv_path: Optional[str] = None,
     regex_config_path: str = "regex_config.jam",
 ) -> Tuple[pd.DataFrame, Dict]:
     """
-    Ejecuta TODO el EDA sobre un DataFrame nuevo (por ejemplo, subido en Streamlit).
-
-    Parámetros
-    ----------
-    df_raw : pd.DataFrame
-        Datos crudos del nuevo lote.
-    clima_csv_path : str | None
-        Ruta al CSV de clima (si es None, NO se enriquece con clima).
-    regex_config_path : str
-        Ruta al archivo regex_config.jam con todos los patrones.
-
-    Retorna
-    -------
-    df : pd.DataFrame
-        Datos limpios / enriquecidos del lote.
-    stats_global : dict
-        Diccionario con métricas y auditoría del EDA.
+    Run full EDA pipeline on a new batch and return cleaned data plus audit stats.
     """
-
     stats_global: Dict = {}
 
-    # Copia para no modificar el original
+    # Copy to avoid modifying the original DataFrame
     df = df_raw.copy()
 
-    # --------------------------------------------------------
-    # Diagnóstico inicial
-    # --------------------------------------------------------
+    # Initial diagnostics
     stats_global["shape_inicial"] = df.shape
     stats_global["mem_mb_inicial"] = round(
         df.memory_usage(deep=True).sum() / (1024**2), 2
@@ -69,21 +44,15 @@ def run_eda_for_upload(
     stats_global["missing_top20"] = report_missing_values(df).head(20)
     stats_global["duplicates_full"] = report_duplicates_full(df)
 
-    # --------------------------------------------------------
     # Cross-fill colonias
-    # --------------------------------------------------------
     df, s_col = cross_fill_colonias(df, "colonia_hecho", "colonia_catalogo")
     stats_global["cross_fill_colonias"] = s_col
 
-    # --------------------------------------------------------
-    # Imputación competencia
-    # --------------------------------------------------------
+    # Competencia imputation
     df, s_comp = fill_competencia(df)
     stats_global["fill_competencia"] = s_comp
 
-    # --------------------------------------------------------
-    # Clasificación por regex (usa regex_config.jam)
-    # --------------------------------------------------------
+    # Regex-based classification (uses regex_config.jam)
     df, s_regex = classify_regex(
         df,
         delito_col="delito",
@@ -94,9 +63,7 @@ def run_eda_for_upload(
     )
     stats_global["regex"] = s_regex
 
-    # --------------------------------------------------------
-    # Features de calendario (día de la semana, quincena)
-    # --------------------------------------------------------
+    # Calendar features (weekday, quincena window)
     if "fecha_hecho" in df.columns:
         df = add_weekday_features(
             df,
@@ -113,15 +80,11 @@ def run_eda_for_upload(
             out_label="No_ventana",
         )
 
-    # --------------------------------------------------------
-    # Imputación lat/long por medianas
-    # --------------------------------------------------------
+    # Lat/long imputation with medians
     df, s_latlng = fill_latlng_medians(df)
     stats_global["latlng"] = s_latlng
 
-    # --------------------------------------------------------
-    # CLIMA (solo si se pasó clima_csv_path != None)
-    # --------------------------------------------------------
+    # Weather enrichment (only if clima_csv_path is provided)
     if clima_csv_path:
         df, s_clima = add_weather_by_alcaldia_fecha(
             df,
@@ -130,7 +93,6 @@ def run_eda_for_upload(
             date_col="fecha_hecho",
         )
     else:
-        # Si no hay clima, sólo registramos que no se enriqueció
         s_clima = {
             "weather_enriched": False,
             "registros_con_clima": 0,
@@ -138,7 +100,7 @@ def run_eda_for_upload(
         }
     stats_global["clima"] = s_clima
 
-    # Normalizar clima_condicion → Soleado / Lluvia (si existe)
+    # Normalize weather condition → Soleado / Lluvia
     if "clima_condicion" in df.columns:
         df["clima_condicion"] = (
             df["clima_condicion"]
@@ -159,23 +121,17 @@ def run_eda_for_upload(
 
         df["clima_condicion"] = df["clima_condicion"].map(_map_weather)
 
-    # --------------------------------------------------------
-    # Región CDMX
-    # --------------------------------------------------------
+    # CDMX region
     if "alcaldia_hecho" in df.columns:
         df["region_cdmx"] = df["alcaldia_hecho"].map(asignar_region)
 
-    # --------------------------------------------------------
-    # Meses a español
-    # --------------------------------------------------------
+    # Month labels in Spanish
     if "mes_inicio" in df.columns:
         df["mes_inicio"] = df["mes_inicio"].map(mes_a_espanol)
     if "mes_hecho" in df.columns:
         df["mes_hecho"] = df["mes_hecho"].map(mes_a_espanol)
 
-    # --------------------------------------------------------
-    # Hora → periodo del día
-    # --------------------------------------------------------
+    # Hour → time-of-day period
     if "hora_hecho" in df.columns:
         df["hora_hecho"] = pd.to_datetime(
             df["hora_hecho"],
@@ -184,20 +140,15 @@ def run_eda_for_upload(
         ).dt.time
         df["periodo_hora"] = df["hora_hecho"].apply(clasificar_hora)
 
-    # --------------------------------------------------------
-    # Drop columnas poco útiles / redundantes
-    # --------------------------------------------------------
+    # Drop sparse or redundant columns
     df, sparse_info = preview_drop_sparse(df, col="alcaldia_catalogo", threshold=0.95)
     stats_global["alcaldia_catalogo_sparse"] = sparse_info
 
-    # Ya no necesitamos algunas columnas
     df.drop(columns=["alcaldia_catalogo"], errors="ignore", inplace=True)
     df.drop(columns=["hora_inicio", "violencia_class"], errors="ignore", inplace=True)
     df.drop(columns=["robo_pasajero"], errors="ignore", inplace=True)
 
-    # --------------------------------------------------------
-    # Deduplicación exacta
-    # --------------------------------------------------------
+    # Exact deduplication
     dups_before = int(df.duplicated(keep=False).sum())
     if dups_before > 0:
         rows_before = len(df)
@@ -225,24 +176,13 @@ def run_eda_for_upload(
     return df, stats_global
 
 
-# ------------------------------------------------------------
-# Helper opcional: pegar a base existente (NO se usa en Streamlit aún)
-# ------------------------------------------------------------
-
-
 def append_to_base_csv(
     new_clean_df: pd.DataFrame,
     base_clean_csv_path: str,
     output_path: Optional[str] = None,
 ) -> Dict:
     """
-    Toma un df ya procesado por run_eda_for_upload y lo agrega a la base limpia.
-    Si output_path es None, sobreescribe base_clean_csv_path.
-
-    Retorna un dict con conteos:
-      - n_before
-      - n_new
-      - n_total
+    Append a cleaned DataFrame to a base CSV and return row count summary.
     """
     base_df = robust_read_csv(base_clean_csv_path)
     n_before = len(base_df)
