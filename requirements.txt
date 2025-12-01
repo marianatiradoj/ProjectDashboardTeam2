@@ -48,4 +48,5 @@ python-dotenv
 tabulate
 snowflake-connector-python
 plotly
+xgboost
 
