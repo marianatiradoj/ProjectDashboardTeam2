@@ -2,8 +2,9 @@
 .venv/
 venv/
 .env/
-env/
 ENV/
+env/
+.env
 
 # --- Python cache ---
 __pycache__/
@@ -30,12 +31,17 @@ htmlcov/
 .streamlit/secrets.toml
 .streamlit/**/secrets.toml
 
-# --- Datos pesados (ajusta según lo que quieras versionar) ---
+# ===============================
+# IGNORAR SOLO ESTE ARCHIVO GIGANTE
+# ===============================
 Database/FGJ_CLEAN_Final.csv
-Database/*.parquet
-data/
-*.parquet
-*.csv
+
+
+# ===============================
+# PERMITIR TODOS ESTOS ARCHIVOS
+# EN CUALQUIER SUBCARPETA
+# ===============================
+
 
 # --- Otros ---
 *.bak
