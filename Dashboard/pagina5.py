@@ -27,7 +27,7 @@ if ROOT_DIR not in sys.path:
 # ---------------------------------------------------------------------
 # Project imports
 # ---------------------------------------------------------------------
-from config import COLONIAS_GEOJSON  # <-- antes SHAPE_PATH
+from config import COLONIAS_GEOJSON  # <-- por ahora no se usa aquí directamente
 from ui.theme_dark import apply_theme
 from core.data_loader import load_central_dataset
 from interactive_dashboard.filters import render_filters
@@ -206,7 +206,8 @@ def main() -> None:
 
     # Geospatial map linked to the same filters
     st.markdown("---")
-    render_map_section(df_filtrado, colonias_path=str(COLONIAS_GEOJSON))
+    # ⬇️ Aquí está la corrección: ya NO pasamos 'colonias_path' como keyword
+    render_map_section(df_filtrado)
 
 
 # Streamlit entrypoint

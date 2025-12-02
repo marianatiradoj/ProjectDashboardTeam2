@@ -1,4 +1,3 @@
-# interactive_dashboard/maps.py
 """
 Motor de mapa geoespacial para el dashboard interactivo.
 
