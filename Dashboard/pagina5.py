@@ -161,16 +161,12 @@ def main() -> None:
     # Load unified dataset (cached helper)
     df = load_central_dataset()
 
-    st.write("Total de registros:", len(df))
-
     if "anio_hecho" in df.columns:
         st.write("Registros por año (df):")
         st.write(df["anio_hecho"].value_counts().sort_index())
 
     # Apply hierarchical filters (time, crime, geography, context)
     df_filtrado, seleccion = render_filters(df)
-
-    st.write("Registros después de filtros:", len(df_filtrado))
 
     # Expose filter context so other pages (e.g. chatbot) can reuse it
     st.session_state["interactive_filters"] = seleccion
