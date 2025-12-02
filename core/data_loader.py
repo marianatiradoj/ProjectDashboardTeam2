@@ -8,7 +8,7 @@ import snowflake.connector  # 👈 IMPORTANTE
 
 from config import (
     COLONIAS_GEOJSON,
-)  # ya no usamos DATA_PATH aquí, solo si lo necesitas en otro lado
+)
 
 
 # 🔹 Conexión Snowflake (usando tus secrets)
@@ -63,13 +63,24 @@ def load_central_dataset() -> pd.DataFrame:
     FROM CRIMENES
     WHERE ANIO_HECHO BETWEEN 2016 AND 2025
     """
+
     conn = get_snowflake_conn()
-    df = pd.read_sql(sql, conn)
+    cur = conn.cursor()
+
+    try:
+        # ❌ Antes: df = pd.read_sql(sql, conn)  → daba UserWarning
+        # ✅ Ahora: usamos la API nativa de Snowflake para pandas:
+        cur.execute(sql)
+        df = cur.fetch_pandas_all()
+    finally:
+        cur.close()
+        # Si quieres, puedes también cerrar la conexión aquí:
+        # conn.close()
 
     # 👇 Normalizar nombres para que coincidan con TODO tu código actual
     df.columns = [c.lower() for c in df.columns]
 
-    # Opcional: asegurar fecha_hecho como datetime (los filtros también lo hacen, pero aquí queda limpio)
+    # Opcional: asegurar fecha_hecho como datetime
     if "fecha_hecho" in df.columns:
         df["fecha_hecho"] = pd.to_datetime(df["fecha_hecho"], errors="coerce")
 
