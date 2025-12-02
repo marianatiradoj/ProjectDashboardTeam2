@@ -1,4 +1,3 @@
-# interactive_dashboard/filters.py
 from __future__ import annotations
 
 from typing import Tuple, Dict, Any, List
@@ -135,8 +134,8 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         selections: dictionary with all current filter values, including
                     'delito_grupo_macro' (macro crime type) that charts can use.
     """
-    df_prepared = _ensure_datetime_fecha_hecho(df)
-    df_work = df_prepared.copy()
+    # Base: trabajamos siempre sobre una copia del dataframe original
+    df_work = df.copy()
 
     # ---------------------------------------------------------------
     # 0. Build mapping group → macro (used for filter synchronization)
@@ -169,20 +168,27 @@ def render_filters(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     # ==================================================================
     # 2. Time filters (year, month, weekday) and temporal scope
     # ==================================================================
-
-    # Compute temporary year column and limit to >= 2016
     year_range = None
-    df_work["anio_tmp"] = (
-        df_work["fecha_hecho"].dt.year if "fecha_hecho" in df_work.columns else None
-    )
 
-    if "anio_tmp" in df_work.columns:
-        df_work = df_work[df_work["anio_tmp"] >= 2016]
-        year_opts = (
-            df_work["anio_tmp"].dropna().astype(int).sort_values().unique().tolist()
-        )
+    # 2.1 Año base: ANIO_HECHO; si no existe, usamos FECHA_HECHO como respaldo
+    if "anio_hecho" in df_work.columns:
+        df_work["anio_tmp"] = pd.to_numeric(df_work["anio_hecho"], errors="coerce")
     else:
-        year_opts = []
+        df_prepared = _ensure_datetime_fecha_hecho(df_work)
+        df_work = df_prepared.copy()
+        if "fecha_hecho" in df_work.columns:
+            df_work["anio_tmp"] = df_work["fecha_hecho"].dt.year
+        else:
+            df_work["anio_tmp"] = pd.NA
+
+    # Limitamos universo a 2016–2025
+    df_work = df_work[
+        (df_work["anio_tmp"].notna())
+        & (df_work["anio_tmp"] >= 2016)
+        & (df_work["anio_tmp"] <= 2025)
+    ]
+
+    year_opts = df_work["anio_tmp"].dropna().astype(int).sort_values().unique().tolist()
 
     # Año del hecho
     if year_opts:

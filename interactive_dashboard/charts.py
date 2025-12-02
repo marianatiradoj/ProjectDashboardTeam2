@@ -69,25 +69,79 @@ def _empty_chart(title: str) -> alt.Chart:
 # ---------------------------------------------------------------------
 def _chart_monthly_timeseries(df: pd.DataFrame) -> alt.Chart:
     """
-    Monthly incident time series using 'fecha_hecho'.
+    Serie temporal mensual de incidentes.
+
+    Prioriza ANIO_HECHO + MES_HECHO (robusto a orígenes CSV / Snowflake).
+    Solo si no existen esas columnas, cae a FECHA_HECHO.
     """
     title = "Evolución mensual de incidentes"
 
-    if "fecha_hecho" not in df.columns or df.empty:
-        return _empty_chart(title)
+    # ---------------------------------------------------------
+    # 1) Camino principal: usar anio_hecho + mes_hecho
+    # ---------------------------------------------------------
+    if {"anio_hecho", "mes_hecho"}.issubset(df.columns) and not df.empty:
+        tmp = df[["anio_hecho", "mes_hecho"]].copy()
 
-    fechas = pd.to_datetime(df["fecha_hecho"], errors="coerce").dropna()
-    if fechas.empty:
-        return _empty_chart(title)
+        # Año a numérico
+        tmp["anio_hecho"] = pd.to_numeric(tmp["anio_hecho"], errors="coerce")
 
-    # Aggregate by month (start of month)
-    ts = (
-        fechas.to_frame(name="fecha_hecho")
-        .assign(mes=lambda x: x["fecha_hecho"].dt.to_period("M").dt.to_timestamp())
-        .groupby("mes")
-        .size()
-        .reset_index(name="incidentes")
-    )
+        # Normalizar mes en español (mayúsculas, sin espacios)
+        tmp["mes_hecho_norm"] = tmp["mes_hecho"].astype(str).str.strip().str.upper()
+
+        month_map = {
+            "ENERO": 1,
+            "FEBRERO": 2,
+            "MARZO": 3,
+            "ABRIL": 4,
+            "MAYO": 5,
+            "JUNIO": 6,
+            "JULIO": 7,
+            "AGOSTO": 8,
+            "SEPTIEMBRE": 9,
+            "OCTUBRE": 10,
+            "NOVIEMBRE": 11,
+            "DICIEMBRE": 12,
+        }
+        tmp["mes_num"] = tmp["mes_hecho_norm"].map(month_map)
+
+        # Quitar registros sin año o sin mes válido
+        tmp = tmp.dropna(subset=["anio_hecho", "mes_num"])
+        if tmp.empty:
+            return _empty_chart(title)
+
+        # Construir timestamp → primer día del mes
+        tmp["mes"] = pd.to_datetime(
+            {
+                "year": tmp["anio_hecho"].astype(int),
+                "month": tmp["mes_num"].astype(int),
+                "day": 1,
+            },
+            errors="coerce",
+        )
+        tmp = tmp.dropna(subset=["mes"])
+        if tmp.empty:
+            return _empty_chart(title)
+
+        ts = tmp.groupby("mes").size().reset_index(name="incidentes").sort_values("mes")
+
+    # ---------------------------------------------------------
+    # 2) Fallback: solo si no tenemos anio_hecho + mes_hecho
+    # ---------------------------------------------------------
+    elif "fecha_hecho" in df.columns and not df.empty:
+        fechas = pd.to_datetime(df["fecha_hecho"], errors="coerce").dropna()
+        if fechas.empty:
+            return _empty_chart(title)
+
+        ts = (
+            fechas.to_frame(name="fecha_hecho")
+            .assign(mes=lambda x: x["fecha_hecho"].dt.to_period("M").dt.to_timestamp())
+            .groupby("mes")
+            .size()
+            .reset_index(name="incidentes")
+            .sort_values("mes")
+        )
+    else:
+        return _empty_chart(title)
 
     base = (
         alt.Chart(ts)
